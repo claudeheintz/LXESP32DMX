@@ -1,0 +1,30 @@
+#######################################
+# Syntax Coloring Map For LXESP32DMX
+####################################### 
+# Class
+#######################################
+
+ESP32MX		KEYWORD1
+LX32DMX		KEYWORD1
+
+#######################################
+# Methods and Functions 
+#######################################	
+
+startOutput						KEYWORD2
+startInput						KEYWORD2
+stop								KEYWORD2
+setDirectionPin				KEYWORD2
+setMaxSlots						KEYWORD2
+setSlot							KEYWORD2
+dmxData							KEYWORD2
+getSlot							KEYWORD2
+setDataReceivedCallback		KEYWORD2
+
+#######################################
+# Constants
+#######################################
+ 
+DMX_MIN_SLOTS	LITERAL1
+DMX_MAX_SLOTS	LITERAL1
+
