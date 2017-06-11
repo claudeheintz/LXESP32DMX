@@ -16,6 +16,10 @@
     
     All modifications are indicated by a comment line starting with:
     "//begin mod"
+    
+    to use the original uart driver change the following macros as follows:
+    #define TWO_STOP_BIT_WORKAROUND 0
+    #define SERIAL2_USES_BREAK_DETECT_SLIP 0
 
 */
 /**************************************************************************/
@@ -51,10 +55,23 @@
 #include "soc/gpio_sig_map.h"
 
 //begin mod ****************************************************
+//
+//			Two stop bit workaround
 //          see https://esp32.com/viewtopic.php?f=2&t=1431
-//          known issue now handled in IDF
-//         
+//          known issue now handled in IDF         
 #define TWO_STOP_BIT_WORKAROUND 1
+
+// set to have serial2 use break detect and SLIP encoding
+#define SERIAL2_USES_BREAK_DETECT_SLIP 1
+
+// macro for for loop in _uart_isr
+// determines if all three uarts are handled in default manner
+#if SERIAL2_USES_BREAK_DETECT_SLIP
+	#define ISR_UART_CT 2
+#else
+	#define ISR_UART_CT 3
+#endif
+
 //end mod   ****************************************************
 
 #define ETS_UART_INUM  5
@@ -103,9 +120,10 @@ static void IRAM_ATTR _uart_isr(void *arg)
     uart_t* uart;
 	
 	//begin mod ****************************************************
-	//         --> change to ;i<2; from ;i<3; in the for(;;) statement
-	//             to handle the first two UARTS normally.  UART2 is handled below
-    for(i=0;i<2;i++){
+	//    --> use ISR_UART_CT macro to change ;i<3; to ;i<2; in the for(;;) statement
+	//	      when SERIAL2_USES_BREAK_DETECT_SLIP == 1, ISR_UART_CT is set to 2
+	//        handle the first two UARTS normally.  UART2 is handled below.
+    for(i=0;i<ISR_UART_CT;i++){
         uart = &_uart_bus_array[i];
         
         uart->dev->int_clr.rxfifo_full = 1;
@@ -117,12 +135,12 @@ static void IRAM_ATTR _uart_isr(void *arg)
                 xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
             }
         }
-    }
-    
+    }    
     //begin mod ****************************************************
     //			handle UART2 differently using break-detect/SLIP
     //			to divide serial stream into packets.
     //
+#if SERIAL2_USES_BREAK_DETECT_SLIP
     uart = &_uart_bus_array[2];
         
 	uart->dev->int_clr.rxfifo_full = 1;
@@ -172,6 +190,7 @@ static void IRAM_ATTR _uart_isr(void *arg)
 			uart->dev->int_clr.brk_det = 1;
 		}
 	}
+#endif
 	//end mod   ****************************************************
 	
     if (xHigherPriorityTaskWoken) {
@@ -205,11 +224,13 @@ void uartEnableInterrupt(uart_t* uart)
 	//
 	// for UART2, add break-detect and adjust fifo for one byte at a time
 	//
+#if SERIAL2_USES_BREAK_DETECT_SLIP
     if ( uart == &_uart_bus_array[2] ) {
     	uart->dev->int_ena.brk_det = 1;
     	uart->dev->conf1.rxfifo_full_thrhd = 1;
     	uart->dev->auto_baud.val = 0;
     }
+#endif
     //end mod   ****************************************************
 
     uart->dev->int_clr.val = 0xffffffff;
