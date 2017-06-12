@@ -57,9 +57,17 @@
 //begin mod ****************************************************
 //
 //			Two stop bit workaround
-//          see https://esp32.com/viewtopic.php?f=2&t=1431
-//          known issue now handled in IDF         
+//          known issue now handled in IDF  
+//          see
+//				https://esp32.com/viewtopic.php?f=2&t=1431
+//			see also
+//				https://github.com/espressif/esp-idf/blob/master/components/driver/uart.c  lines 118-127
+//			TWO_STOP_BIT_WORKAROUND macro modifies code in uartBegin			
 #define TWO_STOP_BIT_WORKAROUND 1
+
+//			/Arduino/hardware/espressif/esp32/tools/sdk/include/soc/soc/uart_struct.h line 163
+#define TWO_STOP_BITS_CONF 0x3
+#define ONE_STOP_BITS_CONF 0x1
 
 // set to have serial2 use break detect and SLIP encoding
 #define SERIAL2_USES_BREAK_DETECT_SLIP 1
@@ -317,21 +325,18 @@ uart_t* uartBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8_t rx
     uartSetBaudRate(uart, baudrate);
     UART_MUTEX_LOCK();
     
+    uart->dev->conf0.val = config;
 //begin mod ****************************************************
 //          --> workaround for two stop bits hardware issue (#else is original)
-//              if 2 stop bits, unset config bit 6 and set conf delay bit
+//              if 2 stop bits, set conf0.stop_bit_num to 1 and set conf delay 1 bit
 #if TWO_STOP_BIT_WORKAROUND
-    uint32_t modified_config = config;
-    if ( (modified_config & 0x30) == 0x30 ) { // bit 6 selects 2 stop bits
-		modified_config &= 0xffffffdf;        // mask out bit 6
-		uart->dev->rs485_conf.dl1_en = 1;     // use delay stop bit workaround
+	if ( uart->dev->conf0.stop_bit_num == TWO_STOP_BITS_CONF) {
+		uart->dev->conf0.stop_bit_num = ONE_STOP_BITS_CONF;
+		uart->dev->rs485_conf.dl1_en = 1;
 	}
-    uart->dev->conf0.val = modified_config;
-#else
-    uart->dev->conf0.val = config;
+
 #endif
 //end mod   ****************************************************
-	
     UART_MUTEX_UNLOCK();
 
     if(rxPin != -1) {
