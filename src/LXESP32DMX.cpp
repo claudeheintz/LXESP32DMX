@@ -34,14 +34,16 @@ LX32DMX ESP32DMX;
  * loops forever until task is ended
  */
 static void IRAM_ATTR sendDMX( void * param ) {
+  LX32DMX* dmxptr = (LX32DMX*) param;
   while ( true ) {
-    LX32DMX* dmxptr = (LX32DMX*) param;
     Serial2.write(dmxptr->dmxData(), dmxptr->numberOfSlots()+1);
     Serial2.waitFIFOEmpty();
+    Serial2.waitTXDone();
 #if DMX_GPIO_BREAK
-	Serial2.waitTXDone();	  // wait for raw bit indicating transmission done
     Serial2.sendBreak(150);
     delayMicroseconds(12);
+#else
+	Serial2.waitTXBrkDone();	  // wait for raw bit indicating transmission done
 #endif
   }
 }

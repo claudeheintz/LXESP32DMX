@@ -27,7 +27,7 @@ struct uart_struct_t {
 };
 
 // wait for FIFO to be empty
-void uartWaitFIFOEmpty(uart_t* uart) {
+void IRAM_ATTR uartWaitFIFOEmpty(uart_t* uart) {
 	if ( uart == NULL ) {
 		return;
 	}
@@ -37,7 +37,7 @@ void uartWaitFIFOEmpty(uart_t* uart) {
     }
 }
 
-void uartWaitTXDone(uart_t* uart) {
+void IRAM_ATTR uartWaitTXDone(uart_t* uart) {
 	if ( uart == NULL ) {
 		return;
 	}
@@ -45,18 +45,19 @@ void uartWaitTXDone(uart_t* uart) {
     while (uart->dev->int_raw.tx_done == 0) {
 		taskYIELD();
 	}
-	
+	uart->dev->int_clr.tx_done = 1;
 }
 
-void uartWaitTXBrkDone(uart_t* uart) {
+void IRAM_ATTR uartWaitTXBrkDone(uart_t* uart) {
 	if ( uart == NULL ) {
 		return;
 	}
     
-    while (uart->dev->int_raw.tx_brk_done == 0) {
+    while (uart->dev->int_raw.tx_brk_idle_done == 0) {
 		taskYIELD();
 	}
 	
+	uart->dev->int_clr.tx_brk_idle_done = 1;
 }
 
 void uartConfigureRS485(uart_t* uart, uint8_t en) {
