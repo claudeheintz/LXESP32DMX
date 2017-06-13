@@ -21,34 +21,35 @@
 LXHardwareSerial Serial2(2);	//must be initialized before ESP32DMX
 LX32DMX ESP32DMX;
 
+// deprecated, now uses ESP32 conf0.txd_brk
+#define DMX_GPIO_BREAK 0
+
+// tx_brk configuration, see LXHardwareSerial::configureSendBreak
+#define TX_BRK_ENABLE 1
+#define DMX_TX_BRK_LENGTH 0x1A
+#define DMX_TX_IDLE_LENGTH 0x0A
 
 /*
  * sendDMX is run by an task with idle priority
  * loops forever until task is ended
  */
-
-#define DMX_GPIO_BREAK 1
-
 static void IRAM_ATTR sendDMX( void * param ) {
   while ( true ) {
     LX32DMX* dmxptr = (LX32DMX*) param;
     Serial2.write(dmxptr->dmxData(), dmxptr->numberOfSlots()+1);
     Serial2.waitFIFOEmpty();
-    //delayMicroseconds(88);  //allow time for last bytes to get shifted out
-    Serial2.waitTXDone();	  // wait for raw bit indicating transmission done
-#if defined(DMX_GPIO_BREAK)
+#if DMX_GPIO_BREAK
+	Serial2.waitTXDone();	  // wait for raw bit indicating transmission done
     Serial2.sendBreak(150);
-#else
-    Serial2.setBaudRate(80000);
-    Serial2.write(0);  //break at slow baud
-    Serial2.waitTXDone();
-    //Serial2.waitFIFOEmpty();
-    //delayMicroseconds(44);
-    Serial2.setBaudRate(250000);
+    delayMicroseconds(12);
 #endif
   }
 }
 
+/*
+ * receiveDMX is run by an task with idle priority
+ * loops forever until task is ended
+ */
 static void IRAM_ATTR receiveDMX( void * param ) {
   while ( true ) {
   	int c = Serial2.read();
@@ -85,6 +86,9 @@ void LX32DMX::startOutput ( void ) {
 	}
 	
 	Serial2.begin(250000, SERIAL_8N2);
+#if (DMX_GPIO_BREAK == 0)
+	Serial2.configureSendBreak(TX_BRK_ENABLE, DMX_TX_BRK_LENGTH, DMX_TX_IDLE_LENGTH);
+#endif
 	//Serial2.configureRS485(1);
 	BaseType_t xReturned;
 
@@ -206,10 +210,6 @@ void LX32DMX::byteReceived(uint8_t c) {
 	}
 	
 }
-
-
-//************************************************************************************
-// WARNING:  the input portion of this library is a draft and is not tested or complete in this version
 
 void LX32DMX::setDataReceivedCallback(LXRecvCallback callback) {
 	_receive_callback = callback;

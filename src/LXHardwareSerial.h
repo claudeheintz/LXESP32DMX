@@ -36,11 +36,15 @@ class LXHardwareSerial : public HardwareSerial {
 	
 	void waitFIFOEmpty();
 	void waitTXDone();
+	void waitTXBrkDone();
     void sendBreak(uint32_t length);
 	void setBaudRate(uint32_t rate);
 	void configureRS485(uint8_t en);
+	void configureSendBreak(uint8_t en, uint8_t len=0x0A, uint16_t idle=0x100);
 };
 
 void uartWaitFIFOEmpty(uart_t* uart);
 void uartWaitTXDone(uart_t* uart);
+void uartWaitTXBrkDone(uart_t* uart);
 void uartConfigureRS485(uart_t* uart, uint8_t en);
+void uartConfigureSendBreak(uart_t* uart, uint8_t en, uint8_t len=0x0A, uint16_t idle=0x100);

@@ -15,7 +15,6 @@
 
 #include "LXHardwareSerial.h"
 
-
 // uart_struct_t is also defined in esp32-hal-uart.c
 // defined here because to access fields in uart_t* in the following mods
 struct uart_struct_t {
@@ -46,10 +45,28 @@ void uartWaitTXDone(uart_t* uart) {
     while (uart->dev->int_raw.tx_done == 0) {
 		taskYIELD();
 	}
+	
+}
+
+void uartWaitTXBrkDone(uart_t* uart) {
+	if ( uart == NULL ) {
+		return;
+	}
+    
+    while (uart->dev->int_raw.tx_brk_done == 0) {
+		taskYIELD();
+	}
+	
 }
 
 void uartConfigureRS485(uart_t* uart, uint8_t en) {
 	uart->dev->rs485_conf.en = en;
+}
+
+void uartConfigureSendBreak(uart_t* uart, uint8_t en, uint8_t len, uint16_t idle) {
+	uart->dev->conf0.txd_brk = en;
+	uart->dev->idle_conf.tx_brk_num=len;
+	uart->dev->idle_conf.tx_idle_num = idle;
 }
 
 
@@ -61,6 +78,10 @@ void LXHardwareSerial::waitFIFOEmpty() {
 
 void LXHardwareSerial::waitTXDone() {
 	uartWaitTXDone(_uart);
+}
+
+void LXHardwareSerial::waitTXBrkDone() {
+	uartWaitTXBrkDone(_uart);
 }
 
 void LXHardwareSerial::sendBreak(uint32_t length) {
@@ -80,7 +101,6 @@ void LXHardwareSerial::sendBreak(uint32_t length) {
   	digitalWrite(txPin, LOW);
   	delayMicroseconds(length);
   	digitalWrite(txPin, HIGH);
-  	delayMicroseconds(12);
   	
   	//reattach
   	pinMatrixOutAttach(txPin, U2TXD_OUT_IDX, false, false);
@@ -92,5 +112,9 @@ void LXHardwareSerial::setBaudRate(uint32_t rate) {
 
 void LXHardwareSerial::configureRS485(uint8_t en) {
 	uartConfigureRS485(_uart, en);
+}
+
+void LXHardwareSerial::configureSendBreak(uint8_t en, uint8_t len, uint16_t idle) {
+	uartConfigureSendBreak(_uart, en, len, idle);
 }
 
