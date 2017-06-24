@@ -36,12 +36,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    can still be used for USB communication.
    (do not use Serial1 because it is connected to flash)
    
-   Input functionality requires replacing the esp32-hal-uart.h and esp32-hal-uart.c
+   Input functionality requires replacing the esp32-hal-uart.c
    files in Arduino/hardware/espressif/esp32/cores/esp32/
    
-   The necessary modified esp32-hal-uart files are included
-   in the extras/modified_hal-uart  folder of this library.
+   The necessary modified esp32-hal-uart file is included in the
+   extras/modified_hal-uart folder of this library.
+   Or use the forked Arduino Core at https://github.com/claudeheintz/arduino-esp32
    
+   @section  HISTORY
+   v1.0	- first release
+   v1.1 - simplifies modifications to esp32-hal-uart.c required for DMX input
  */
 
 
@@ -67,8 +71,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     #define DMX_STATE_RECEIVING 1
     #define DMX_STATE_ESC 2
     
-    
 typedef void (*LXRecvCallback)(int);
+
+//Special Byte Definitions for SLIP Encoding
+#define SLIP_END      0xC0
+#define SLIP_ESC      0xDB
+#define SLIP_ESC_ESC  0xDC
+#define SLIP_ESC_END  0xDD
 
 /*!   
 @class LX32DMX

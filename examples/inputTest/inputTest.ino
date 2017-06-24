@@ -9,25 +9,61 @@
     @section  HISTORY
 
     v1.00 - First release
+    v1.1  - Adds PWM output
 */
 /**************************************************************************/
 #include <LXESP32DMX.h>
 
 
 // the addresses of the slots to observe
-int slot = 10;
-int slot2 = 1;
-int slot3 = 512;
+int test_slotA = 10;
+int test_slotB = 1;
+int test_slotC = 512;
 
 // the levels of those slots
-uint8_t level = 0;
-uint8_t level2 = 0;
-uint8_t level3 = 0;
+uint8_t test_levelA = 0;
+uint8_t test_levelB = 0;
+uint8_t test_levelC = 0;
 
+//pins for PWM output
+uint8_t led_pinA = 5;
+uint8_t led_pinB = 18;
+uint8_t led_pinC = 19;
 
+//ledc channels (set to zero to disable)
+uint8_t led_channelA = 1;
+uint8_t led_channelB = 2;
+uint8_t led_channelC = 3;
+
+/************************************************************************
+	attach a pin to a channel and configure PWM output
+*************************************************************************/
+void setupPWMChannel(uint8_t pin, uint8_t channel) {
+	if ( channel ) {
+		ledcAttachPin(pin, channel);
+		ledcSetup(channel, 12000, 16); // 12 kHz PWM, 8-bit resolution
+	}
+}
+
+/************************************************************************
+	gamma corrected write to a PWM channel
+*************************************************************************/
+void gammaCorrectedWrite(uint8_t channel, uint8_t level) {
+	if ( channel ) {
+		ledcWrite(channel, level*level);
+	}
+}
+
+/************************************************************************
+	setup
+*************************************************************************/
 void setup() {
   Serial.begin(115200);
   Serial.print("setup");
+  
+  setupPWMChannel(led_pinA, led_channelA);
+  setupPWMChannel(led_pinB, led_channelB);
+  setupPWMChannel(led_pinC, led_channelC);
 
   ESP32DMX.startInput();
   Serial.println("setup complete");
@@ -36,28 +72,32 @@ void setup() {
 /************************************************************************
 
   The main loop checks to see if the level of the designated slot has changed
-  and prints the new level to the serial monitor.
+  and prints the new level to the serial monitor.  If a PWM channel is assigned,
+  it also sets the output level.
   
 *************************************************************************/
 
 void loop() {
-  if ( level != ESP32DMX.getSlot(slot) ) {
-    level = ESP32DMX.getSlot(slot);
-    Serial.print(slot);
+  if ( test_levelA != ESP32DMX.getSlot(test_slotA) ) {
+    test_levelA = ESP32DMX.getSlot(test_slotA);
+    Serial.print(test_slotA);
     Serial.print(" => ");
-    Serial.println(level);
+    Serial.println(test_levelA);
+    gammaCorrectedWrite(led_channelA, test_levelA);
   }
-  if ( level2 != ESP32DMX.getSlot(slot2) ) {
-    level2 = ESP32DMX.getSlot(slot2);
-    Serial.print(slot2);
+  if ( test_levelB != ESP32DMX.getSlot(test_slotB) ) {
+    test_levelB = ESP32DMX.getSlot(test_slotB);
+    Serial.print(test_slotB);
     Serial.print(" => ");
-    Serial.println(level2);
+    Serial.println(test_levelB);
+    gammaCorrectedWrite(led_channelB, test_levelB);
   }
-  if ( level3 != ESP32DMX.getSlot(slot3) ) {
-    level3 = ESP32DMX.getSlot(slot3);
-    Serial.print(slot3);
+  if ( test_levelC != ESP32DMX.getSlot(test_slotC) ) {
+    test_levelC = ESP32DMX.getSlot(test_slotC);
+    Serial.print(test_slotC);
     Serial.print(" => ");
-    Serial.println(level3);
+    Serial.println(test_levelC);
+    gammaCorrectedWrite(led_channelC, test_levelC);
   }
   delay(2);
 }

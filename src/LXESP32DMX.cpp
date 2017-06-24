@@ -29,6 +29,11 @@ LX32DMX ESP32DMX;
 #define DMX_TX_BRK_LENGTH 0x1A
 #define DMX_TX_IDLE_LENGTH 0x0A
 
+// pin definitions
+#define SERIAL_TWO_TX_PIN 17
+#define SERIAL_TWO_RX_PIN 16
+#define SERIAL_TWO_NULL_PIN -1
+
 /*
  * sendDMX is run by an task with idle priority
  * loops forever until task is ended
@@ -87,7 +92,7 @@ void LX32DMX::startOutput ( void ) {
 		stop();
 	}
 	
-	Serial2.begin(250000, SERIAL_8N2);
+	Serial2.begin(250000, SERIAL_8N2, SERIAL_TWO_NULL_PIN, SERIAL_TWO_TX_PIN);
 #if (DMX_GPIO_BREAK == 0)
 	Serial2.configureSendBreak(TX_BRK_ENABLE, DMX_TX_BRK_LENGTH, DMX_TX_IDLE_LENGTH);
 #endif
@@ -115,7 +120,9 @@ void LX32DMX::startInput ( void ) {
 		stop();
 	}
 	
-	Serial2.begin(250000, SERIAL_8N2);
+	Serial2.begin(250000, SERIAL_8N2, SERIAL_TWO_RX_PIN, SERIAL_TWO_NULL_PIN);
+	Serial2.enableBreakDetect();
+	
 	BaseType_t xReturned;
 
   	xReturned = xTaskCreate(

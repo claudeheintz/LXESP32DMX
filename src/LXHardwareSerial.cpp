@@ -26,6 +26,14 @@ struct uart_struct_t {
     xQueueHandle queue;
 };
 
+#if CONFIG_DISABLE_HAL_LOCKS
+#define UART_MUTEX_LOCK()
+#define UART_MUTEX_UNLOCK()
+#else
+#define UART_MUTEX_LOCK()    do {} while (xSemaphoreTake(uart->lock, portMAX_DELAY) != pdPASS)
+#define UART_MUTEX_UNLOCK()  xSemaphoreGive(uart->lock)
+#endif
+
 // wait for FIFO to be empty
 void IRAM_ATTR uartWaitFIFOEmpty(uart_t* uart) {
 	if ( uart == NULL ) {
@@ -61,13 +69,41 @@ void IRAM_ATTR uartWaitTXBrkDone(uart_t* uart) {
 }
 
 void uartConfigureRS485(uart_t* uart, uint8_t en) {
+	UART_MUTEX_LOCK();
 	uart->dev->rs485_conf.en = en;
+	UART_MUTEX_UNLOCK();
 }
 
 void uartConfigureSendBreak(uart_t* uart, uint8_t en, uint8_t len, uint16_t idle) {
+	UART_MUTEX_LOCK();
 	uart->dev->conf0.txd_brk = en;
 	uart->dev->idle_conf.tx_brk_num=len;
 	uart->dev->idle_conf.tx_idle_num = idle;
+	UART_MUTEX_UNLOCK();
+}
+
+// ****************************************************
+//			uartConfigureTwoStopBits
+//          known issue with two stop bits now handled in IDF and Arduino Core
+//          see
+//				https://github.com/espressif/esp-idf/blob/master/components/driver/uart.c
+//				uart_set_stop_bits(), lines 118-127
+//          see also
+//				https://esp32.com/viewtopic.php?f=2&t=1431
+
+void uartSetToTwoStopBits(uart_t* uart) {
+	UART_MUTEX_LOCK();
+	uart->dev->conf0.stop_bit_num = 1;
+	uart->dev->rs485_conf.dl1_en = 1;
+	UART_MUTEX_UNLOCK();
+}
+
+void uartEnableBreakDetect(uart_t* uart) {
+	UART_MUTEX_LOCK();
+	uart->dev->int_ena.brk_det = 1;
+    uart->dev->conf1.rxfifo_full_thrhd = 1;
+    uart->dev->auto_baud.val = 0;
+    UART_MUTEX_UNLOCK();
 }
 
 
@@ -117,5 +153,13 @@ void LXHardwareSerial::configureRS485(uint8_t en) {
 
 void LXHardwareSerial::configureSendBreak(uint8_t en, uint8_t len, uint16_t idle) {
 	uartConfigureSendBreak(_uart, en, len, idle);
+}
+
+void LXHardwareSerial::setToTwoStopBits() {
+	uartSetToTwoStopBits(_uart);
+}
+
+void LXHardwareSerial::enableBreakDetect() {
+	uartEnableBreakDetect(_uart);
 }
 

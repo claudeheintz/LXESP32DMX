@@ -8,36 +8,33 @@
     Modified esp32-hal-uart.c from original included in Arduino core for ESP-32
     https://github.com/espressif/arduino-esp32
     
-    This modification allows UART2 to use break-detect and SLIP encoding to
+    This modification allows using SLIP encoding to
     read a serial stream as packets delineated by breaks (line low).
     Primary application is in reading DMX.
     
-    Includes a workaround for 8N2, two stop bits from latest Espressif IDF.
-    
     All modifications are indicated by a comment line starting with:
-    "//begin mod"
+    "//begin mod   ****************************************************"
     
-    to use the original uart driver change the following macros as follows:
-    #define TWO_STOP_BIT_WORKAROUND 0
-    #define SERIAL2_USES_BREAK_DETECT_SLIP 0
+    uncommenting #define on line 56, USE_SLIP_FOR_BREAK_DETECT
+    causes ISR to encode bytes sent to queue using SLIP encoding
+    when a uart's break detect interrupt is enabled
 
 */
 /**************************************************************************/
-// Original copyright and license:
-//
-// Copyright 2015-2016 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+/* Original copyright and license:
 
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+  Copyright 2015-2016 Espressif Systems (Shanghai) PTE LTD
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+      http://www.apache.org/licenses/LICENSE-2.0
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+*/
 
 #include "esp32-hal-uart.h"
 #include "esp32-hal.h"
@@ -54,32 +51,17 @@
 #include "soc/io_mux_reg.h"
 #include "soc/gpio_sig_map.h"
 
-//begin mod ****************************************************
-//
-//			Two stop bit workaround
-//          known issue now handled in IDF  
-//          see
-//				https://esp32.com/viewtopic.php?f=2&t=1431
-//			see also
-//				https://github.com/espressif/esp-idf/blob/master/components/driver/uart.c  lines 118-127
-//			TWO_STOP_BIT_WORKAROUND macro modifies code in uartBegin			
-#define TWO_STOP_BIT_WORKAROUND 1
+//begin mod   ****************************************************
+//            USE_SLIP_FOR_BREAK_DETECT causes ISR to use SLIP encoding for bytes
+//            sent to queue when a uart's break detect interrupt is enabled.
+//            A detected break is encoded as SLIP_END.
+#define USE_SLIP_FOR_BREAK_DETECT 1
 
-//			/Arduino/hardware/espressif/esp32/tools/sdk/include/soc/soc/uart_struct.h line 163
-#define TWO_STOP_BITS_CONF 0x3
-#define ONE_STOP_BITS_CONF 0x1
-
-// set to have serial2 use break detect and SLIP encoding
-#define SERIAL2_USES_BREAK_DETECT_SLIP 1
-
-// macro for for loop in _uart_isr
-// determines if all three uarts are handled in default manner
-#if SERIAL2_USES_BREAK_DETECT_SLIP
-	#define ISR_UART_CT 2
-#else
-	#define ISR_UART_CT 3
-#endif
-
+//Special Byte Definitions for SLIP Encoding
+#define SLIP_END      0xC0
+#define SLIP_ESC      0xDB
+#define SLIP_ESC_ESC  0xDC
+#define SLIP_ESC_END  0xDD
 //end mod   ****************************************************
 
 #define ETS_UART_INUM  5
@@ -123,87 +105,91 @@ static uart_t _uart_bus_array[3] = {
 
 static void IRAM_ATTR _uart_isr(void *arg)
 {
+	digitalWrite(5, HIGH);
     uint8_t i, c;
     BaseType_t xHigherPriorityTaskWoken;
     uart_t* uart;
 	
-	//begin mod ****************************************************
-	//    --> use ISR_UART_CT macro to change ;i<3; to ;i<2; in the for(;;) statement
-	//	      when SERIAL2_USES_BREAK_DETECT_SLIP == 1, ISR_UART_CT is set to 2
-	//        handle the first two UARTS normally.  UART2 is handled below.
-    for(i=0;i<ISR_UART_CT;i++){
+
+    for(i=0;i<3;i++){
         uart = &_uart_bus_array[i];
         
         uart->dev->int_clr.rxfifo_full = 1;
-        uart->dev->int_clr.frm_err = 1;
-        uart->dev->int_clr.rxfifo_tout = 1;
-        while(uart->dev->status.rxfifo_cnt) {
-            c = uart->dev->fifo.rw_byte;
-            if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
-                xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
-            }
-        }
-    }    
-    //begin mod ****************************************************
-    //			handle UART2 differently using break-detect/SLIP
-    //			to divide serial stream into packets.
-    //
-#if SERIAL2_USES_BREAK_DETECT_SLIP
-    uart = &_uart_bus_array[2];
-        
-	uart->dev->int_clr.rxfifo_full = 1;
-    uart->dev->int_clr.frm_err = 1;
-    uart->dev->int_clr.rxfifo_tout = 1;
-	
-	while(uart->dev->status.rxfifo_cnt) {
-		c = uart->dev->fifo.rw_byte;
+		uart->dev->int_clr.frm_err = 1;
+		uart->dev->int_clr.rxfifo_tout = 1;
 		
-		// encode incoming byte using SLIP
-		// SLIP is simple and uses a special byte SLIP_END to mark the end
-		// of a packet.  If the special byte appears as data, it is escaped
-		// as follows:
-		// if byte == SLIP_END replace with SLIP_ESC followed by SLIP_ESC_END
-		if ( c == SLIP_END ) {
-			c = SLIP_ESC;
-			if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
-				xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
+//begin mod ****************************************************        
+#if USE_SLIP_FOR_BREAK_DETECT
+
+		// if break detect interrupt is enabled, use SLIP encoding 
+        if ( uart->dev->int_ena.brk_det ) {
+        	while(uart->dev->status.rxfifo_cnt) {
+				c = uart->dev->fifo.rw_byte;
+		
+				// encode incoming byte using SLIP
+				// SLIP is simple and uses a special byte SLIP_END to mark the end
+				// of a packet.  If the special byte appears as data, it is escaped
+				// as follows:
+				// if byte == SLIP_END replace with SLIP_ESC followed by SLIP_ESC_END
+				if ( c == SLIP_END ) {
+					c = SLIP_ESC;
+					if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
+						xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
+					}
+					c = SLIP_ESC_END;
+					if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
+						xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
+					}
+				// if byte == SLIP_ESC replace with SLIP_ESC followed by SLIP_ESC_ESC
+				} else if ( c == SLIP_ESC ) {
+					c = SLIP_ESC;
+					if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
+						xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
+					}
+					c = SLIP_ESC_ESC;
+					if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
+						xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
+					}
+				//otherwise just queue the byte
+				} else {
+					if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
+						xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
+					}
+				}
 			}
-			c = SLIP_ESC_END;
-			if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
-				xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
+        	// send SLIP END when break is detected to mark end of packet
+			if (uart->dev->int_st.brk_det) {
+				c = SLIP_END;
+				if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
+					xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
+					uart->dev->int_clr.brk_det = 1;
+				}
 			}
-		// if byte == SLIP_ESC replace with SLIP_ESC followed by SLIP_ESC_ESC
-		} else if ( c == SLIP_ESC ) {
-			c = SLIP_ESC;
-			if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
-				xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
-			}
-			c = SLIP_ESC_ESC;
-			if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
-				xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
-			}
-		//otherwise just queue the byte
-		} else {
-			if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
-				xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
-			}
-		}
-	}
-	
-	// send SLIP END when break is detected to mark end of packet
-	if (uart->dev->int_st.brk_det) {
-		c = SLIP_END;
-		if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
-			xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
-			uart->dev->int_clr.brk_det = 1;
-		}
-	}
+        } else {
+        
 #endif
-	//end mod   ****************************************************
+//end mod ****************************************************  
+
+			while(uart->dev->status.rxfifo_cnt) {
+				c = uart->dev->fifo.rw_byte;
+				if(uart->queue != NULL && !xQueueIsQueueFullFromISR(uart->queue)) {
+					xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
+				}
+			}
+			
+//begin mod ****************************************************  
+#if USE_SLIP_FOR_BREAK_DETECT
+		}
+#endif
+//end mod ****************************************************  
+
+    }   	// for loop uart[0..2]
 	
     if (xHigherPriorityTaskWoken) {
         portYIELD_FROM_ISR();
     }
+    
+    digitalWrite(5, LOW);
 }
 
 void uartEnableGlobalInterrupt()
@@ -227,20 +213,6 @@ void uartEnableInterrupt(uart_t* uart)
     uart->dev->int_ena.rxfifo_full = 1;
     uart->dev->int_ena.frm_err = 1;
     uart->dev->int_ena.rxfifo_tout = 1;
-
-	//begin mod ****************************************************
-	//
-	// for UART2, add break-detect and adjust fifo for one byte at a time
-	//
-#if SERIAL2_USES_BREAK_DETECT_SLIP
-    if ( uart == &_uart_bus_array[2] ) {
-    	uart->dev->int_ena.brk_det = 1;
-    	uart->dev->conf1.rxfifo_full_thrhd = 1;
-    	uart->dev->auto_baud.val = 0;
-    }
-#endif
-    //end mod   ****************************************************
-
     uart->dev->int_clr.val = 0xffffffff;
 
     intr_matrix_set(xPortGetCoreID(), UART_INTR_SOURCE(uart->num), ETS_UART_INUM);
@@ -324,19 +296,14 @@ uart_t* uartBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8_t rx
     uartFlush(uart);
     uartSetBaudRate(uart, baudrate);
     UART_MUTEX_LOCK();
-    
     uart->dev->conf0.val = config;
-//begin mod ****************************************************
-//          --> workaround for two stop bits hardware issue (#else is original)
-//              if 2 stop bits, set conf0.stop_bit_num to 1 and set conf delay 1 bit
-#if TWO_STOP_BIT_WORKAROUND
-	if ( uart->dev->conf0.stop_bit_num == TWO_STOP_BITS_CONF) {
-		uart->dev->conf0.stop_bit_num = ONE_STOP_BITS_CONF;
-		uart->dev->rs485_conf.dl1_en = 1;
-	}
-
-#endif
-//end mod   ****************************************************
+    #define TWO_STOP_BITS_CONF 0x3
+    #define ONE_STOP_BITS_CONF 0x1
+	
+    if ( uart->dev->conf0.stop_bit_num == TWO_STOP_BITS_CONF) {
+        uart->dev->conf0.stop_bit_num = ONE_STOP_BITS_CONF;
+        uart->dev->rs485_conf.dl1_en = 1;
+    }
     UART_MUTEX_UNLOCK();
 
     if(rxPin != -1) {

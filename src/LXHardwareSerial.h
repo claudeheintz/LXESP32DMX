@@ -10,6 +10,7 @@
     @section  HISTORY
 
     v1.0 - First release
+    v1.1 - Added functions here to simplify required modifications to esp32-hal-uart.c
 */
 /**************************************************************************/
 
@@ -29,7 +30,6 @@
 #include "soc/io_mux_reg.h"
 #include "soc/gpio_sig_map.h"
 
-
 class LXHardwareSerial : public HardwareSerial {
 	public:
 	LXHardwareSerial(int uart_nr);
@@ -41,6 +41,8 @@ class LXHardwareSerial : public HardwareSerial {
 	void setBaudRate(uint32_t rate);
 	void configureRS485(uint8_t en);
 	void configureSendBreak(uint8_t en, uint8_t len, uint16_t idle);
+	void setToTwoStopBits();
+	void enableBreakDetect();
 };
 
 void uartWaitFIFOEmpty(uart_t* uart);
@@ -48,3 +50,5 @@ void uartWaitTXDone(uart_t* uart);
 void uartWaitTXBrkDone(uart_t* uart);
 void uartConfigureRS485(uart_t* uart, uint8_t en);
 void uartConfigureSendBreak(uart_t* uart, uint8_t en, uint8_t len, uint16_t idle);
+void uartSetToTwoStopBits(uart_t* uart);
+void uartEnableBreakDetect(uart_t* uart);

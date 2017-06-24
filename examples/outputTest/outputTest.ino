@@ -15,6 +15,7 @@
 
 
 uint8_t level;
+uint8_t dmxbuffer[DMX_MAX_FRAME];
 
 void setup() {
   Serial.begin(115200);
@@ -24,6 +25,12 @@ void setup() {
   Serial.println("setup complete");
 }
 
+void copyDMXToOutput(void) {
+	for (int i=1; i<DMX_MAX_FRAME; i++) {
+    	ESP32DMX.setSlot(i , dmxbuffer[i]);
+    }
+}
+
 /************************************************************************
 
   The main loop fades the levels of addresses 1,7,8,510,511, and 512 from zero->full
@@ -31,12 +38,15 @@ void setup() {
 *************************************************************************/
 
 void loop() {
-  ESP32DMX.setSlot(1, level);
-  ESP32DMX.setSlot(7, level);
-  ESP32DMX.setSlot(8, level);
-  ESP32DMX.setSlot(510, level);
-  ESP32DMX.setSlot(511, level);
-  ESP32DMX.setSlot(512, level);
+  dmxbuffer[1] = level;
+  dmxbuffer[7] = level;
+  dmxbuffer[8] = level;
+  dmxbuffer[510] = level;
+  dmxbuffer[511] = level;
+  dmxbuffer[512] = level;
+  
+  copyDMXToOutput();
+  
   level++;
   delay(100);
 }
