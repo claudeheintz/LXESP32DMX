@@ -112,7 +112,7 @@ class LX32DMX {
     *             sets globals accessed in ISR, 
     *             enables transmission and tx interrupt.
    */
-   void startOutput( void );
+   void startOutput( uint8_t pin=17 );
    
    /*!
     * @brief starts interrupt that continuously reads DMX data
@@ -120,7 +120,7 @@ class LX32DMX {
     *             sets globals accessed in ISR, 
     *             enables transmission and tx interrupt
    */
-   void startInput( void );
+   void startInput( uint8_t pin=16 );
    
    /*!
     * @brief disables transmission and tx interrupt

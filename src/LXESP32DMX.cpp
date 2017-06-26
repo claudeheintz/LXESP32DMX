@@ -29,10 +29,8 @@ LX32DMX ESP32DMX;
 #define DMX_TX_BRK_LENGTH 0x1A
 #define DMX_TX_IDLE_LENGTH 0x0A
 
-// pin definitions
-#define SERIAL_TWO_TX_PIN 17
-#define SERIAL_TWO_RX_PIN 16
-#define SERIAL_TWO_NULL_PIN -1
+// disconnected pin definition
+#define NO_PIN -1
 
 /*
  * sendDMX is run by an task with idle priority
@@ -84,7 +82,7 @@ LX32DMX::~LX32DMX ( void ) {
     _receive_callback = NULL;
 }
 
-void LX32DMX::startOutput ( void ) {
+void LX32DMX::startOutput ( uint8_t pin ) {
 	if ( _direction_pin != DIRECTION_PIN_NOT_USED ) {
 		digitalWrite(_direction_pin, HIGH);
 	}
@@ -92,7 +90,7 @@ void LX32DMX::startOutput ( void ) {
 		stop();
 	}
 	
-	Serial2.begin(250000, SERIAL_8N2, SERIAL_TWO_NULL_PIN, SERIAL_TWO_TX_PIN);
+	Serial2.begin(250000, SERIAL_8N2, NO_PIN, pin);
 #if (DMX_GPIO_BREAK == 0)
 	Serial2.configureSendBreak(TX_BRK_ENABLE, DMX_TX_BRK_LENGTH, DMX_TX_IDLE_LENGTH);
 #endif
@@ -112,7 +110,7 @@ void LX32DMX::startOutput ( void ) {
     }
 }
 
-void LX32DMX::startInput ( void ) {
+void LX32DMX::startInput ( uint8_t pin ) {
 	if ( _direction_pin != DIRECTION_PIN_NOT_USED ) {
 		digitalWrite(_direction_pin, LOW);
 	}
@@ -120,7 +118,7 @@ void LX32DMX::startInput ( void ) {
 		stop();
 	}
 	
-	Serial2.begin(250000, SERIAL_8N2, SERIAL_TWO_RX_PIN, SERIAL_TWO_NULL_PIN);
+	Serial2.begin(250000, SERIAL_8N2, pin, NO_PIN);
 	Serial2.enableBreakDetect();
 	
 	BaseType_t xReturned;
