@@ -55,6 +55,37 @@ void gammaCorrectedWrite(uint8_t channel, uint8_t level) {
 }
 
 /************************************************************************
+	callback for when DMX frame is received
+	Note:  called from receive task
+*************************************************************************/
+
+void receiveCallback(int slots) {
+	if ( slots ) {
+		if ( test_levelA != ESP32DMX.getSlot(test_slotA) ) {
+			test_levelA = ESP32DMX.getSlot(test_slotA);
+			Serial.print(test_slotA);
+			Serial.print(" => ");
+			Serial.println(test_levelA);
+			gammaCorrectedWrite(led_channelA, test_levelA);
+		}
+		if ( test_levelB != ESP32DMX.getSlot(test_slotB) ) {
+			test_levelB = ESP32DMX.getSlot(test_slotB);
+			Serial.print(test_slotB);
+			Serial.print(" => ");
+			Serial.println(test_levelB);
+			gammaCorrectedWrite(led_channelB, test_levelB);
+		}
+		if ( test_levelC != ESP32DMX.getSlot(test_slotC) ) {
+			test_levelC = ESP32DMX.getSlot(test_slotC);
+			Serial.print(test_slotC);
+			Serial.print(" => ");
+			Serial.println(test_levelC);
+			gammaCorrectedWrite(led_channelC, test_levelC);
+		}
+	}
+}
+
+/************************************************************************
 	setup
 *************************************************************************/
 void setup() {
@@ -66,8 +97,10 @@ void setup() {
   setupPWMChannel(led_pinC, led_channelC);
 
   ESP32DMX.startInput();
+  ESP32DMX.setDataReceivedCallback(receiveCallback);
   Serial.println("setup complete");
 }
+
 
 /************************************************************************
 
@@ -78,26 +111,5 @@ void setup() {
 *************************************************************************/
 
 void loop() {
-  if ( test_levelA != ESP32DMX.getSlot(test_slotA) ) {
-    test_levelA = ESP32DMX.getSlot(test_slotA);
-    Serial.print(test_slotA);
-    Serial.print(" => ");
-    Serial.println(test_levelA);
-    gammaCorrectedWrite(led_channelA, test_levelA);
-  }
-  if ( test_levelB != ESP32DMX.getSlot(test_slotB) ) {
-    test_levelB = ESP32DMX.getSlot(test_slotB);
-    Serial.print(test_slotB);
-    Serial.print(" => ");
-    Serial.println(test_levelB);
-    gammaCorrectedWrite(led_channelB, test_levelB);
-  }
-  if ( test_levelC != ESP32DMX.getSlot(test_slotC) ) {
-    test_levelC = ESP32DMX.getSlot(test_slotC);
-    Serial.print(test_slotC);
-    Serial.print(" => ");
-    Serial.println(test_levelC);
-    gammaCorrectedWrite(led_channelC, test_levelC);
-  }
-  delay(2);
+  delay(25);
 }
