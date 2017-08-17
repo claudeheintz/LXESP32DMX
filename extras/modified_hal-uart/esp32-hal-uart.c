@@ -323,9 +323,7 @@ void uartEnd(uart_t* uart) {
         uint8_t c;
         while(xQueueReceive(uart->queue, &c, 0));
         vQueueDelete(uart->queue);
-//begin mod   ****************************************************
         uart->queue = NULL;
-//end mod   ****************************************************
     }
 
     uart->dev->conf0.val = 0;
