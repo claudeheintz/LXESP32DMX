@@ -37,9 +37,10 @@ LX32DMX ESP32DMX;
  * loops forever until task is ended
  */
 static void IRAM_ATTR sendDMX( void * param ) {
-  LX32DMX* dmxptr = (LX32DMX*) param;
-  while ( true ) {
-    Serial2.write(dmxptr->dmxData(), dmxptr->numberOfSlots()+1);
+  //LX32DMX* dmxptr = (LX32DMX*) param;
+  ESP32DMX.setActiveTask(1);
+  while ( ESP32DMX.continueTask() ) {
+    Serial2.write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
     Serial2.waitFIFOEmpty();
     Serial2.waitTXDone();
 #if DMX_GPIO_BREAK
@@ -49,6 +50,12 @@ static void IRAM_ATTR sendDMX( void * param ) {
 	Serial2.waitTXBrkDone();	  // wait for raw bit indicating transmission done
 #endif
   }
+  
+  // signal task end and wait for task to be deleted
+  ESP32DMX.setActiveTask(0);
+  while( true ) {
+  	yield();
+  }
 }
 
 /*
@@ -56,13 +63,20 @@ static void IRAM_ATTR sendDMX( void * param ) {
  * loops forever until task is ended
  */
 static void IRAM_ATTR receiveDMX( void * param ) {
-  while ( true ) {
+  ESP32DMX.setActiveTask(1);
+  while ( ESP32DMX.continueTask() ) {
   	int c = Serial2.read();
   	if ( c >= 0 ) {
   		ESP32DMX.byteReceived(c&0xff);
   	} else {
   		taskYIELD();
   	}
+  }
+  
+  // signal task end and wait for task to be deleted
+  ESP32DMX.setActiveTask(0);
+  while( true ) {
+  	yield();
   }
 }
 
@@ -75,6 +89,8 @@ LX32DMX::LX32DMX ( void ) {
 	_slots = DMX_MAX_SLOTS;
 	_xHandle = NULL;
 	clearSlots();
+	_task_active = 0;
+	_continue_task = 0;
 }
 
 LX32DMX::~LX32DMX ( void ) {
@@ -94,6 +110,8 @@ void LX32DMX::startOutput ( uint8_t pin ) {
 #if (DMX_GPIO_BREAK == 0)
 	Serial2.configureSendBreak(TX_BRK_ENABLE, DMX_TX_BRK_LENGTH, DMX_TX_IDLE_LENGTH);
 #endif
+
+	_continue_task = 1;
 	//Serial2.configureRS485(1);
 	BaseType_t xReturned;
 
@@ -121,6 +139,7 @@ void LX32DMX::startInput ( uint8_t pin ) {
 	Serial2.begin(250000, SERIAL_8N2, pin, NO_PIN);
 	Serial2.enableBreakDetect();
 	
+	_continue_task = 1;
 	BaseType_t xReturned;
 
   	xReturned = xTaskCreate(
@@ -136,11 +155,19 @@ void LX32DMX::startInput ( uint8_t pin ) {
     }
 }
 
-void LX32DMX::stop ( void ) { 
+void LX32DMX::stop ( void ) {
+	_continue_task = 0;
+	while ( _task_active ) {
+		yield();
+	}
+	
 	// is there a better way to end task??
+	// seems if task function exits, there is a crash
+	// 
 	if ( _xHandle != NULL ) {
 		vTaskDelete( _xHandle );
 	}
+	
 	_xHandle = NULL;
 	Serial2.end();
 }
@@ -181,6 +208,14 @@ void LX32DMX::clearSlots (void) {
 
 uint8_t* LX32DMX::dmxData(void) {
 	return _dmxData;
+}
+
+uint8_t LX32DMX::continueTask() {
+	return _continue_task;
+}
+
+void LX32DMX::setActiveTask(uint8_t s) {
+	_task_active = s;
 }
 
 void LX32DMX::frameReceived( void ) {

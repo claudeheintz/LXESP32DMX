@@ -34,6 +34,8 @@ class LXHardwareSerial : public HardwareSerial {
 	public:
 	LXHardwareSerial(int uart_nr);
 	
+	void end();
+	
 	void waitFIFOEmpty();
 	void waitTXDone();
 	void waitTXBrkDone();
@@ -52,3 +54,4 @@ void uartConfigureRS485(uart_t* uart, uint8_t en);
 void uartConfigureSendBreak(uart_t* uart, uint8_t en, uint8_t len, uint16_t idle);
 void uartSetToTwoStopBits(uart_t* uart);
 void uartEnableBreakDetect(uart_t* uart);
+void uartDisableInterrupt(uart_t* uart);

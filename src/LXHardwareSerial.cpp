@@ -106,8 +106,26 @@ void uartEnableBreakDetect(uart_t* uart) {
     UART_MUTEX_UNLOCK();
 }
 
+void uartDisableInterrupt(uart_t* uart) {
+    UART_MUTEX_LOCK();
+    uart->dev->conf1.val = 0;
+    uart->dev->int_ena.val = 0;
+    uart->dev->int_clr.val = 0xffffffff;
+    UART_MUTEX_UNLOCK();
+}
+
 
 LXHardwareSerial::LXHardwareSerial(int uart_nr):HardwareSerial(uart_nr) {}
+
+void LXHardwareSerial::end() {
+	uartDisableInterrupt(_uart);
+	
+    if(uartGetDebug() == _uart_nr) {
+        uartSetDebug(0);
+    }
+    uartEnd(_uart);
+    _uart = 0;
+}
 
 void LXHardwareSerial::waitFIFOEmpty() {
 	uartWaitFIFOEmpty(_uart);

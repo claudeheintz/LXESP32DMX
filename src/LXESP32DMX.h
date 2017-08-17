@@ -181,6 +181,17 @@ class LX32DMX {
    */
    uint8_t* dmxData( void );
    
+	/*!
+    * @brief indicate if the loop of an I/O task should continue
+    * @return 0 if task should not repeat (and end)
+   */
+	uint8_t continueTask( void );
+	
+	/*!
+    * @brief set a flag indicating that a task is looping
+   */
+	void setActiveTask(uint8_t s);
+	
    /*!
     * @brief dmx frame received, call DataReceivedCallback function, if set.
    */
@@ -190,7 +201,6 @@ class LX32DMX {
     * @brief called from read task with next character from serial
    */
    void byteReceived(uint8_t c);
-
   	
   	/*!
     * @brief Function called when DMX frame has been read
@@ -208,6 +218,16 @@ class LX32DMX {
    * @brief represents phase of sending dmx packet data/break/etc used to change baud settings
    */
   	uint8_t  _dmx_state;
+  	
+   /*!
+   * @brief flag to continuously loop an I/O task
+   */
+  	uint8_t  _continue_task;
+  	
+   /*!
+   * @brief flag indication a task loop has started
+   */
+  	uint8_t  _task_active;
   	
   	/*!
    * @brief pin used to control direction of output driver chip
