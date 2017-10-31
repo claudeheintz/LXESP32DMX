@@ -9,12 +9,8 @@ Arduino core for the ESP32 is found at https://github.com/espressif/arduino-esp3
 
 Install Arduino core for the ESP32 into [path to sketch folder]/Arduino/hardware/.
 
-Replace the following files:
-
-[path to sketch folder]/Arduino/hardware/espressif/esp32/cores/esp32/esp32-hal-uart.h
-
-and
+Replace the following file:
 
 [path to sketch folder]/Arduino/hardware/espressif/esp32/cores/esp32/esp32-hal-uart.c
 
-with files included with this library in the extras/modified_hal-uart folder.
+with the file included with this library in the extras/modified_hal-uart folder.

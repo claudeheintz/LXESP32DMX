@@ -21,6 +21,7 @@ void setup() {
   Serial.begin(115200);
   Serial.print("setup");
 
+  ESP32DMX.setDirectionPin(21);
   ESP32DMX.startOutput();
   Serial.println("setup complete");
 }

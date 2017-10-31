@@ -1,40 +1,16 @@
-/**************************************************************************/
-/*!
-    @file     esp32-hal-uart.c
-    @author   Claude Heintz
-    @license  BSD (see https://www.claudeheintzdesign.com/lx/opensource.html)
-    @copyright 2017 by Claude Heintz
+// Copyright 2015-2016 Espressif Systems (Shanghai) PTE LTD
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 
-    Modified esp32-hal-uart.c from original included in Arduino core for ESP-32
-    https://github.com/espressif/arduino-esp32
-    
-    This modification allows using SLIP encoding to
-    read a serial stream as packets delineated by breaks (line low).
-    Primary application is in reading DMX.
-    
-    All modifications are indicated by a comment line starting with:
-    "//begin mod   ****************************************************"
-    
-    uncommenting #define on line 56, USE_SLIP_FOR_BREAK_DETECT
-    causes ISR to encode bytes sent to queue using SLIP encoding
-    when a uart's break detect interrupt is enabled
-
-*/
-/**************************************************************************/
-/* Original copyright and license:
-
-  Copyright 2015-2016 Espressif Systems (Shanghai) PTE LTD
-
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-      http://www.apache.org/licenses/LICENSE-2.0
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
-*/
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 #include "esp32-hal-uart.h"
 #include "esp32-hal.h"
@@ -50,6 +26,8 @@
 #include "soc/uart_struct.h"
 #include "soc/io_mux_reg.h"
 #include "soc/gpio_sig_map.h"
+#include "soc/dport_reg.h"
+#include "esp_intr_alloc.h"
 
 //begin mod   ****************************************************
 //            USE_SLIP_FOR_BREAK_DETECT causes ISR to use SLIP encoding for bytes
@@ -81,6 +59,7 @@ struct uart_struct_t {
 #endif
     uint8_t num;
     xQueueHandle queue;
+    intr_handle_t intr_handle;
 };
 
 #if CONFIG_DISABLE_HAL_LOCKS
@@ -88,18 +67,18 @@ struct uart_struct_t {
 #define UART_MUTEX_UNLOCK()
 
 static uart_t _uart_bus_array[3] = {
-    {(volatile uart_dev_t *)(DR_REG_UART_BASE), 0, NULL},
-    {(volatile uart_dev_t *)(DR_REG_UART1_BASE), 1, NULL},
-    {(volatile uart_dev_t *)(DR_REG_UART2_BASE), 2, NULL}
+    {(volatile uart_dev_t *)(DR_REG_UART_BASE), 0, NULL, NULL},
+    {(volatile uart_dev_t *)(DR_REG_UART1_BASE), 1, NULL, NULL},
+    {(volatile uart_dev_t *)(DR_REG_UART2_BASE), 2, NULL, NULL}
 };
 #else
 #define UART_MUTEX_LOCK()    do {} while (xSemaphoreTake(uart->lock, portMAX_DELAY) != pdPASS)
 #define UART_MUTEX_UNLOCK()  xSemaphoreGive(uart->lock)
 
 static uart_t _uart_bus_array[3] = {
-    {(volatile uart_dev_t *)(DR_REG_UART_BASE), NULL, 0, NULL},
-    {(volatile uart_dev_t *)(DR_REG_UART1_BASE), NULL, 1, NULL},
-    {(volatile uart_dev_t *)(DR_REG_UART2_BASE), NULL, 2, NULL}
+    {(volatile uart_dev_t *)(DR_REG_UART_BASE), NULL, 0, NULL, NULL},
+    {(volatile uart_dev_t *)(DR_REG_UART1_BASE), NULL, 1, NULL, NULL},
+    {(volatile uart_dev_t *)(DR_REG_UART2_BASE), NULL, 2, NULL, NULL}
 };
 #endif
 
@@ -108,10 +87,12 @@ static void IRAM_ATTR _uart_isr(void *arg)
     uint8_t i, c;
     BaseType_t xHigherPriorityTaskWoken;
     uart_t* uart;
-	
 
     for(i=0;i<3;i++){
         uart = &_uart_bus_array[i];
+        if(uart->intr_handle == NULL){
+            continue;
+        }
         uart->dev->int_clr.rxfifo_full = 1;
 		uart->dev->int_clr.frm_err = 1;
 		uart->dev->int_clr.rxfifo_tout = 1;
@@ -162,6 +143,7 @@ static void IRAM_ATTR _uart_isr(void *arg)
 					xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
 					uart->dev->int_clr.brk_det = 1;
 				}
+				//uart->dev->int_clr.brk_det = 1;
 			}
         } else {
         
@@ -188,18 +170,6 @@ static void IRAM_ATTR _uart_isr(void *arg)
     }
 }
 
-void uartEnableGlobalInterrupt()
-{
-    xt_set_interrupt_handler(ETS_UART_INUM, _uart_isr, NULL);
-    ESP_INTR_ENABLE(ETS_UART_INUM);
-}
-
-void uartDisableGlobalInterrupt()
-{
-    ESP_INTR_DISABLE(ETS_UART_INUM);
-    xt_set_interrupt_handler(ETS_UART_INUM, NULL, NULL);
-}
-
 void uartEnableInterrupt(uart_t* uart)
 {
     UART_MUTEX_LOCK();
@@ -211,7 +181,7 @@ void uartEnableInterrupt(uart_t* uart)
     uart->dev->int_ena.rxfifo_tout = 1;
     uart->dev->int_clr.val = 0xffffffff;
 
-    intr_matrix_set(xPortGetCoreID(), UART_INTR_SOURCE(uart->num), ETS_UART_INUM);
+    esp_intr_alloc(UART_INTR_SOURCE(uart->num), (int)ESP_INTR_FLAG_IRAM, _uart_isr, NULL, &uart->intr_handle);
     UART_MUTEX_UNLOCK();
 }
 
@@ -221,6 +191,10 @@ void uartDisableInterrupt(uart_t* uart)
     uart->dev->conf1.val = 0;
     uart->dev->int_ena.val = 0;
     uart->dev->int_clr.val = 0xffffffff;
+
+    esp_intr_free(uart->intr_handle);
+    uart->intr_handle = NULL;
+
     UART_MUTEX_UNLOCK();
 }
 
@@ -249,7 +223,6 @@ void uartAttachRx(uart_t* uart, uint8_t rxPin, bool inverted)
     pinMode(rxPin, INPUT);
     pinMatrixInAttach(rxPin, UART_RXD_IDX(uart->num), inverted);
     uartEnableInterrupt(uart);
-    uartEnableGlobalInterrupt();
 }
 
 void uartAttachTx(uart_t* uart, uint8_t txPin, bool inverted)
@@ -288,7 +261,16 @@ uart_t* uartBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8_t rx
             return NULL;
         }
     }
-
+    if(uart_nr == 1){
+        DPORT_SET_PERI_REG_MASK(DPORT_PERIP_CLK_EN_REG, DPORT_UART1_CLK_EN);
+        DPORT_CLEAR_PERI_REG_MASK(DPORT_PERIP_RST_EN_REG, DPORT_UART1_RST);
+    } else if(uart_nr == 2){
+        DPORT_SET_PERI_REG_MASK(DPORT_PERIP_CLK_EN_REG, DPORT_UART2_CLK_EN);
+        DPORT_CLEAR_PERI_REG_MASK(DPORT_PERIP_RST_EN_REG, DPORT_UART2_RST);
+    } else {
+        DPORT_SET_PERI_REG_MASK(DPORT_PERIP_CLK_EN_REG, DPORT_UART_CLK_EN);
+        DPORT_CLEAR_PERI_REG_MASK(DPORT_PERIP_RST_EN_REG, DPORT_UART_RST);
+    }
     uartFlush(uart);
     uartSetBaudRate(uart, baudrate);
     UART_MUTEX_LOCK();
@@ -313,7 +295,8 @@ uart_t* uartBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8_t rx
     return uart;
 }
 
-void uartEnd(uart_t* uart) {
+void uartEnd(uart_t* uart)
+{
     if(uart == NULL) {
         return;
     }
