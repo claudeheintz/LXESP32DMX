@@ -26,6 +26,7 @@ struct uart_struct_t {
 #endif
     uint8_t num;
     xQueueHandle queue;
+    intr_handle_t intr_handle;
 };
 
 #if CONFIG_DISABLE_HAL_LOCKS
@@ -78,6 +79,42 @@ void IRAM_ATTR hardwareSerialDelayMicroseconds(uint32_t us) {
             NOP();
         }
     }
+}
+
+void IRAM_ATTR delayWDTYieldMicroseconds(uint32_t us) {
+/*
+	replace dependence on privateMicros()
+    The regular delay version hangs eventually
+    Not sure if this is overflow
+    Or, the use of portENTER_CRITICAL_ISR which could block...
+    
+    This work-around is not portable or dependable as a delay:
+       The delay in tests for a desired 150us works out to be closer to 900us.
+       that's with the yield and continuous Art-Net on the loop.
+       
+       without the yield (only feeding the WDT), 208us for 150 requested and 20us for 12 requested
+*/
+    uint16_t loops = us;
+	for(uint16_t k=0; k<loops; k++) {
+	   esp_task_wdt_feed();
+       taskYIELD();
+	}
+/*
+
+    uint32_t m = privateMicros();
+    if(us){
+        uint32_t e = (m + us);
+        if(m > e){ //overflow
+            while(privateMicros() > e){
+                esp_task_wdt_feed();
+                taskYIELD();
+            }
+        }
+        while(privateMicros() < e){
+            esp_task_wdt_feed();
+            taskYIELD();
+        }
+    }*/
 }
 
 // *****************************
@@ -241,7 +278,8 @@ void LXHardwareSerial::sendBreak(uint32_t length) {
     }
     
     uint32_t save_interrupts = _uart->dev->int_ena.val;
-    uartDisableInterrupts(_uart);
+    //uartDisableInterrupts(_uart);
+    esp_intr_disable(_uart->intr_handle);
     
     // detach 
     pinMatrixOutDetach(txPin, false, false);
@@ -249,13 +287,14 @@ void LXHardwareSerial::sendBreak(uint32_t length) {
   	pinMode(txPin, OUTPUT);
   	
   	digitalWrite(txPin, LOW);
-  	hardwareSerialDelayMicroseconds(length);		//<<---lockup problem is here, replace delayMicroseconds with alternate
+  	delayWDTYieldMicroseconds(length);		//<<---lockup problem is here, replace delayMicroseconds with alternate
   	digitalWrite(txPin, HIGH);
   	
   	//reattach
   	pinMatrixOutAttach(txPin, U2TXD_OUT_IDX, false, false);
   	
-  	uartSetInterrupts(_uart, save_interrupts);
+  	esp_intr_enable(_uart->intr_handle);
+  	//uartSetInterrupts(_uart, save_interrupts);
 }
 
 void LXHardwareSerial::setBaudRate(uint32_t rate) {

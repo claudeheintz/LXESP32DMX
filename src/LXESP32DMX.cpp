@@ -26,7 +26,7 @@ LX32DMX ESP32DMX;
 UID LX32DMX::THIS_DEVICE_ID(0x6C, 0x78, 0x00, 0x00, 0x02, 0x01);
 
 // deprecated, now uses ESP32 conf0.txd_brk
-#define DMX_GPIO_BREAK 0
+#define DMX_GPIO_BREAK 1
 
 // tx_brk configuration, see LXHardwareSerial::configureSendBreak
 #define TX_BRK_ENABLE 1
@@ -50,7 +50,7 @@ static void IRAM_ATTR sendDMX( void * param ) {
     				  		// break at end is actually for next packet...
 #if DMX_GPIO_BREAK
     Serial2.sendBreak(150);
-    delayMicroseconds(12);
+    delayWDTYieldMicroseconds(12);
 #else
 	Serial2.waitTXBrkDone();	  // wait for raw bit indicating transmission done
 #endif
@@ -107,7 +107,7 @@ static void IRAM_ATTR rdmTask( void * param ) {
 			if ( task_mode == DMX_TASK_SEND_RDM ) {
 			    if ( ESP32DMX.rdmBreakMode() ) {
 				   Serial2.sendBreak(150);					// uses hardwareSerialDelayMicroseconds
-				   hardwareSerialDelayMicroseconds(12);	// <- insure no conflict on another thread/task
+				   delayWDTYieldMicroseconds(12);	// <- insure no conflict on another thread/task
 				   esp_task_wdt_feed();
 				   Serial2.write(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());
 				} else {
@@ -118,8 +118,7 @@ static void IRAM_ATTR rdmTask( void * param ) {
 				ESP32DMX._setTaskReceiveRDM();
 			} else {									// otherwise send regular DMX
 				Serial2.sendBreak(150);					// send break first (uses hardwareSerialDelayMicroseconds)
-				hardwareSerialDelayMicroseconds(12);    // <- insure no conflict on another thread/task
-				esp_task_wdt_feed();
+				delayWDTYieldMicroseconds(12);    // <- insure no conflict on another thread/task
 				Serial2.write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
 				
 				Serial2.waitFIFOEmpty();
@@ -157,6 +156,7 @@ LX32DMX::LX32DMX ( void ) {
 	_task_active = 0;
 	_continue_task = 0;
 	_rdm_brk_mode = 1;
+	_rdm_task_mode = 0;
 }
 
 LX32DMX::~LX32DMX ( void ) {
@@ -221,6 +221,7 @@ void LX32DMX::startInput ( uint8_t pin ) {
     if( xReturned != pdPASS ) {
         _xHandle = NULL;
     }
+    _rdm_task_mode = 0;
     
     resetFrame();
     if ( _direction_pin != DIRECTION_PIN_NOT_USED ) {
@@ -245,10 +246,10 @@ void LX32DMX::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t 
   	xReturned = xTaskCreate(
                     rdmTask,         /* Function that implements the task. */
                     "DMX-Task",         /* Text name for the task. */
-                    1024,               /* Stack size in words, not bytes. */
+                    8192,               /* Stack size in words, not bytes. */
                     this,               /* Parameter passed into the task. */
                     tskIDLE_PRIORITY+1,   /* Priority at which the task is created. */
-                    &_xHandle );
+                    &_xHandle);
             
     if( xReturned != pdPASS ) {
         _xHandle = NULL;
@@ -335,13 +336,15 @@ void LX32DMX::setActiveTask(uint8_t s) {
 void LX32DMX::packetComplete( void ) {
 	if ( _receivedData[0] == 0 ) {				//zero start code is DMX
 		if ( _rdm_read_handled == 0 ) {
-			_slots = _current_slot - 1;				//_current_slot represents next slot so subtract one
-			for(int j=0; j<_current_slot; j++) {	//copy dmx values from read buffer
-				_dmxData[j] = _receivedData[j];
-			}
+		    if ( _current_slot > 24 ) {
+				_slots = _current_slot - 1;				//_current_slot represents next slot so subtract one
+				for(int j=0; j<_current_slot; j++) {	//copy dmx values from read buffer
+					_dmxData[j] = _receivedData[j];
+				}
 	
-			if ( _receive_callback != NULL ) {
-				_receive_callback(_slots);
+				if ( _receive_callback != NULL ) {
+					_receive_callback(_slots);
+				}
 			}
 		}
 	} else {
@@ -388,6 +391,12 @@ void LX32DMX::addReceivedByte(uint8_t value) {
 }
 
 void LX32DMX::byteReceived(uint8_t c) {
+	if ( _rdm_task_mode ) {
+		if ( _current_slot < 500 ) {
+			return;
+		}
+	}
+
 	if ( c == SLIP_END ) {			//break received
 		if ( _dmx_state == DMX_STATE_RECEIVING ) {			// break has already been detected
 			if ( _current_slot > 1 ) {						// break before end of maximum frame
@@ -808,7 +817,7 @@ void LX32DMX::sendRDMDiscoverBranchResponse( void ) {
 	_rdm_len = 24;							// note no start code [0]
 	_rdm_brk_mode = 0;						// send (no break)
 	digitalWrite(_direction_pin, HIGH); 	// could cut off receiving (?)
-	delayMicroseconds(100);
+	delayWDTYieldMicroseconds(100);
 	_rdm_task_mode = DMX_TASK_SEND_RDM;
 	
 	while ( _rdm_task_mode ) {	//wait for packet to be sent and listening to start again
