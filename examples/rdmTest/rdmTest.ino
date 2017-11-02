@@ -16,7 +16,7 @@
 #include <UID.h>
 #include <TOD.h>
 #include <rdm_utility.h>
-
+#include "esp_task_wdt.h"
 
 
 // the addresses of the slots to observe
@@ -331,7 +331,9 @@ void loop() {
   Serial.print("loop ");
   Serial.println(testLevel);
 #endif
-  delay(2);
+  esp_task_wdt_feed();
+  vTaskDelay(2);
+  
   testRDMDiscovery();
   
   ESP32DMX.setSlot(7,testLevel);
@@ -344,7 +346,8 @@ void loop() {
     loopDivider = 0;
   }
   if ( testLevel == 1 ) {
-    delay(500);
+    esp_task_wdt_feed();
+    vTaskDelay(500);
     identifyFlag = 1;
   }
 }

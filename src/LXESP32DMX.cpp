@@ -71,6 +71,7 @@ static void IRAM_ATTR sendDMX( void * param ) {
 static void IRAM_ATTR receiveDMX( void * param ) {
   ESP32DMX.setActiveTask(1);
   while ( ESP32DMX.continueTask() ) {
+    esp_task_wdt_feed();
   	int c = Serial2.read();
   	if ( c >= 0 ) {
   		ESP32DMX.byteReceived(c&0xff);
@@ -185,7 +186,7 @@ void LX32DMX::startOutput ( uint8_t pin ) {
   	xReturned = xTaskCreate(
                     sendDMX,            /* Function that implements the task. */
                     "DMX-Out",              /* Text name for the task. */
-                    1024,               /* Stack size in words, not bytes. */
+                    8192,               /* Stack size in words, not bytes. */
                     this,               /* Parameter passed into the task. */
                     tskIDLE_PRIORITY+1,   /* Priority at which the task is created. */
                     &_xHandle );
@@ -213,7 +214,7 @@ void LX32DMX::startInput ( uint8_t pin ) {
   	xReturned = xTaskCreate(
                     receiveDMX,         /* Function that implements the task. */
                     "DMX-In",              /* Text name for the task. */
-                    1024,               /* Stack size in words, not bytes. */
+                    8192,               /* Stack size in words, not bytes. */
                     this,               /* Parameter passed into the task. */
                     tskIDLE_PRIORITY+1,   /* Priority at which the task is created. */
                     &_xHandle );
@@ -391,9 +392,9 @@ void LX32DMX::addReceivedByte(uint8_t value) {
 }
 
 void LX32DMX::byteReceived(uint8_t c) {
-	if ( _rdm_task_mode ) {
-		if ( _current_slot < 500 ) {
-			return;
+	if ( _rdm_task_mode ) {				// this prevents a stray read from setting slots
+		if ( _current_slot < 500 ) {	// strange that bytes will be received when driver
+			return;						// chip remains low(?) perhaps should not test _current_slot
 		}
 	}
 

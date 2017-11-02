@@ -13,7 +13,7 @@
 */
 /**************************************************************************/
 #include <LXESP32DMX.h>
-
+#include "esp_task_wdt.h"
 
 // the addresses of the slots to observe
 int test_slotA = 10;

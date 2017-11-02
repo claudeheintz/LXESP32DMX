@@ -12,7 +12,7 @@
 */
 /**************************************************************************/
 #include <LXESP32DMX.h>
-
+#include "esp_task_wdt.h"
 
 uint8_t level;
 uint8_t dmxbuffer[DMX_MAX_FRAME];
@@ -21,7 +21,6 @@ void setup() {
   Serial.begin(115200);
   Serial.print("setup");
 
-  ESP32DMX.setDirectionPin(21);
   ESP32DMX.startOutput();
   Serial.println("setup complete");
 }
@@ -49,5 +48,7 @@ void loop() {
   copyDMXToOutput();
   
   level++;
-  delay(100);
+
+  esp_task_wdt_feed();
+  vTaskDelay(100);
 }
