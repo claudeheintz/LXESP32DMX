@@ -185,6 +185,11 @@ class LX32DMX {
    void clearSlots ( void );
    
    /*!
+    * @brief mutex exposed as public member variable
+   */
+   SemaphoreHandle_t lxDataLock;
+   
+   /*!
     * @brief provides direct access to data array
     * @return pointer to dmx array
    */

@@ -67,6 +67,12 @@ unsigned long IRAM_ATTR privateMicros()
 }
 
 void IRAM_ATTR hardwareSerialDelayMicroseconds(uint32_t us) {
+	for(int k=0; k<us; k++) {	// approximate delay, not a very portable solution
+		esp_task_wdt_feed();	// might be possible to replace this with a timer(?)
+		taskYIELD();			// this may or may not allow another task to run
+	}
+// ccount appears to be CPU dependent and task might switch CPUs making Micros invalid
+/*
     uint32_t m = privateMicros();
     if(us){
         uint32_t e = (m + us);
@@ -78,42 +84,6 @@ void IRAM_ATTR hardwareSerialDelayMicroseconds(uint32_t us) {
         while(privateMicros() < e){
             NOP();
         }
-    }
-}
-
-void IRAM_ATTR delayWDTYieldMicroseconds(uint32_t us) {
-/*
-	replace dependence on privateMicros()
-    The regular delay version hangs eventually
-    Not sure if this is overflow
-    Or, the use of portENTER_CRITICAL_ISR which could block...
-    
-    This work-around is not portable or dependable as a delay:
-       The delay in tests for a desired 150us works out to be closer to 900us.
-       that's with the yield and continuous Art-Net on the loop.
-       
-       without the yield (only feeding the WDT), 208us for 150 requested and 20us for 12 requested
-*/
-    uint16_t loops = us;
-	for(uint16_t k=0; k<loops; k++) {
-	   esp_task_wdt_feed();
-       taskYIELD();
-	}
-/*
-
-    uint32_t m = privateMicros();
-    if(us){
-        uint32_t e = (m + us);
-        if(m > e){ //overflow
-            while(privateMicros() > e){
-                esp_task_wdt_feed();
-                taskYIELD();
-            }
-        }
-        while(privateMicros() < e){
-            esp_task_wdt_feed();
-            taskYIELD();
-        }
     }*/
 }
 
@@ -124,10 +94,13 @@ void IRAM_ATTR uartWaitFIFOEmpty(uart_t* uart) {
 	if ( uart == NULL ) {
 		return;
 	}
-	
+	uint16_t timeout = 0;
     while(uart->dev->status.txfifo_cnt != 0x00) {
-    	esp_task_wdt_feed();
-    	taskYIELD();
+        timeout++;
+        if ( timeout > 20000 ) {
+        	break;
+        }
+        hardwareSerialDelayMicroseconds(10);
     }
 }
 
@@ -136,9 +109,13 @@ void IRAM_ATTR uartWaitRxFIFOEmpty(uart_t* uart) {
 		return;
 	}
 	
+	uint16_t timeout = 0;
     while(uart->dev->status.rxfifo_cnt != 0x00) {
-        esp_task_wdt_feed();
-    	taskYIELD();
+        timeout++;
+        if ( timeout > 20000 ) {
+        	break;
+        }
+        hardwareSerialDelayMicroseconds(10);
     }
 }
 
@@ -147,9 +124,13 @@ void IRAM_ATTR uartWaitTXDone(uart_t* uart) {
 		return;
 	}
     
+    uint16_t timeout = 0;
     while (uart->dev->int_raw.tx_done == 0) {
-        esp_task_wdt_feed();
-		taskYIELD();
+        timeout++;
+        if ( timeout > 20000 ) {
+        	break;
+        }
+        hardwareSerialDelayMicroseconds(10);
 	}
 	uart->dev->int_clr.tx_done = 1;
 }
@@ -160,8 +141,7 @@ void IRAM_ATTR uartWaitTXBrkDone(uart_t* uart) {
 	}
     
     while (uart->dev->int_raw.tx_brk_idle_done == 0) {
-        esp_task_wdt_feed();
-		taskYIELD();
+        hardwareSerialDelayMicroseconds(10);
 	}
 	
 	uart->dev->int_clr.tx_brk_idle_done = 1;
@@ -283,11 +263,10 @@ void LXHardwareSerial::sendBreak(uint32_t length) {
     
     // detach 
     pinMatrixOutDetach(txPin, false, false);
-  
   	pinMode(txPin, OUTPUT);
   	
   	digitalWrite(txPin, LOW);
-  	delayWDTYieldMicroseconds(length);		//<<---lockup problem is here, replace delayMicroseconds with alternate
+  	hardwareSerialDelayMicroseconds(length);
   	digitalWrite(txPin, HIGH);
   	
   	//reattach

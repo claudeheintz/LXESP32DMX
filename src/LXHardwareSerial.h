@@ -64,4 +64,3 @@ void uartSetInterrupts(uart_t* uart, uint32_t value);
 void uartClearInterrupts(uart_t* uart);
 
 void hardwareSerialDelayMicroseconds(uint32_t us);
-void delayWDTYieldMicroseconds(uint32_t us);

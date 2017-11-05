@@ -16,7 +16,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "esp_task_wdt.h"
 #include "LXESP32DMX.h"
 #include "rdm_utility.h"
 
@@ -25,13 +24,6 @@ LX32DMX ESP32DMX;
 
 UID LX32DMX::THIS_DEVICE_ID(0x6C, 0x78, 0x00, 0x00, 0x02, 0x01);
 
-// deprecated, now uses ESP32 conf0.txd_brk
-#define DMX_GPIO_BREAK 1
-
-// tx_brk configuration, see LXHardwareSerial::configureSendBreak
-#define TX_BRK_ENABLE 1
-#define DMX_TX_BRK_LENGTH 0x1A
-#define DMX_TX_IDLE_LENGTH 0x0A
 
 // disconnected pin definition
 #define NO_PIN -1
@@ -40,107 +32,114 @@ UID LX32DMX::THIS_DEVICE_ID(0x6C, 0x78, 0x00, 0x00, 0x02, 0x01);
  * sendDMX is run by an task with idle priority
  * loops forever until task is ended
  */
-static void IRAM_ATTR sendDMX( void * param ) {
+static void sendDMX( void * param ) {
   //LX32DMX* dmxptr = (LX32DMX*) param;
+  
   ESP32DMX.setActiveTask(1);
+  
   while ( ESP32DMX.continueTask() ) {
+  
+    Serial2.sendBreak(150);
+    hardwareSerialDelayMicroseconds(12);
+    
+    xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
     Serial2.write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
-    Serial2.waitFIFOEmpty();
+    xSemaphoreGive( ESP32DMX.lxDataLock );
+    								//vTaskDelay must be called to avoid wdt and lock up issues
+    vTaskDelay(5);					//use time while UART finishes sending to allow other tasks to run
+    Serial2.waitFIFOEmpty();		//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
     Serial2.waitTXDone();
     				  		// break at end is actually for next packet...
-#if DMX_GPIO_BREAK
-    Serial2.sendBreak(150);
-    delayWDTYieldMicroseconds(12);
-#else
-	Serial2.waitTXBrkDone();	  // wait for raw bit indicating transmission done
-#endif
+
   }
   
   // signal task end and wait for task to be deleted
   ESP32DMX.setActiveTask(0);
-  while( true ) {
-    esp_task_wdt_feed();
-  	taskYIELD();
-  }
+  
+  vTaskDelete( NULL );	// delete this task
 }
 
 /*
  * receiveDMX is run by an task with idle priority
  * loops forever until task is ended
  */
-static void IRAM_ATTR receiveDMX( void * param ) {
+static void receiveDMX( void * param ) {
+
   ESP32DMX.setActiveTask(1);
+  
   while ( ESP32DMX.continueTask() ) {
-    esp_task_wdt_feed();
   	int c = Serial2.read();
   	if ( c >= 0 ) {
   		ESP32DMX.byteReceived(c&0xff);
   	} else {
-  	    esp_task_wdt_feed();
-  		taskYIELD();
+  											//vTaskDelay must be called to avoid wdt and lock up issues
+  	    vTaskDelay(1);	// can read much faster than DMX speed to catch up so 1ms delay for idle task is OK
   	}
   }
   
   // signal task end and wait for task to be deleted
   ESP32DMX.setActiveTask(0);
-  while( true ) {
-    esp_task_wdt_feed();
-  	taskYIELD();
-  }
+  
+  vTaskDelete( NULL );	// delete this task
 }
 
 /*
  * rdmTask is run by an task with idle priority
  * loops forever until task is ended
  */
-static void IRAM_ATTR rdmTask( void * param ) {
+static void rdmTask( void * param ) {
+
   uint8_t task_mode;
   ESP32DMX.setActiveTask(1);
+  
   while ( ESP32DMX.continueTask() ) {
-  	esp_task_wdt_feed();
-    
+
 	int c = Serial2.read();
-	if ( c >= 0 ) {								//if byte read, receive it
-		ESP32DMX.byteReceived(c&0xff);
+	if ( c >= 0 ) {								// if byte read, receive it...may invoke callback function
+		ESP32DMX.byteReceived(c&0xff);			// eventually will catch up, nothing to read and vTaskDelay will be called
 	} else {
 		task_mode = ESP32DMX.rdmTaskMode();
 		if ( task_mode  ) {
 			if ( task_mode == DMX_TASK_SEND_RDM ) {
 			    if ( ESP32DMX.rdmBreakMode() ) {
 				   Serial2.sendBreak(150);					// uses hardwareSerialDelayMicroseconds
-				   delayWDTYieldMicroseconds(12);	// <- insure no conflict on another thread/task
-				   esp_task_wdt_feed();
+				   hardwareSerialDelayMicroseconds(12);
+				   
 				   Serial2.write(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());
 				} else {
 				   Serial2.write(&ESP32DMX.rdmData()[1], ESP32DMX.rdmPacketLength());	//note packet length skips start code
 				}
+				
+				//vTaskDelay(1);<-should not be needed here because rdm should be interleaved with regular zscDMX				
 				Serial2.waitFIFOEmpty();
 				Serial2.waitTXDone();
 				ESP32DMX._setTaskReceiveRDM();
 			} else {									// otherwise send regular DMX
 				Serial2.sendBreak(150);					// send break first (uses hardwareSerialDelayMicroseconds)
-				delayWDTYieldMicroseconds(12);    // <- insure no conflict on another thread/task
+				hardwareSerialDelayMicroseconds(12);    // <- insure no conflict on another thread/task
+			
+				xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
 				Serial2.write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
-				
-				Serial2.waitFIFOEmpty();
+				xSemaphoreGive( ESP32DMX.lxDataLock );
+														//vTaskDelay must be called to avoid wdt and lock up issues
+				vTaskDelay(5);							//use time while UART finishes sending to allow other tasks to run
+				Serial2.waitFIFOEmpty();				//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
 				Serial2.waitTXDone();
 				if ( task_mode == DMX_TASK_SET_SEND ) {
 					ESP32DMX._setTaskModeSend();
 				}
 			}
 		} else {
-		    esp_task_wdt_feed();
-			taskYIELD();		// if not sending and read nothing, yield
+		    vTaskDelay(1);	// receiving but nothing to read, assumes buffer can be emptied faster than it fills
 		}
+
 	}		//nothing read
   } 		//while
   
   // signal task end and wait for task to be deleted
   ESP32DMX.setActiveTask(0);
-  while( true ) {
-    esp_task_wdt_feed();
-    taskYIELD();
-  }
+  
+  vTaskDelete( NULL );	// delete this task
 }
 
 
@@ -148,6 +147,7 @@ static void IRAM_ATTR rdmTask( void * param ) {
  ***********************  LX32DMX member functions  ********************/
 
 LX32DMX::LX32DMX ( void ) {
+    lxDataLock = xSemaphoreCreateMutex();
 	_direction_pin = DIRECTION_PIN_NOT_USED;	//optional
 	_slots = DMX_MAX_SLOTS;
 	_xHandle = NULL;
@@ -176,9 +176,7 @@ void LX32DMX::startOutput ( uint8_t pin ) {
 	}
 	
 	Serial2.begin(250000, SERIAL_8N2, NO_PIN, pin);
-#if (DMX_GPIO_BREAK == 0)
-	Serial2.configureSendBreak(TX_BRK_ENABLE, DMX_TX_BRK_LENGTH, DMX_TX_IDLE_LENGTH);
-#endif
+
 	//Serial2.configureRS485(1);
 	
 	_continue_task = 1;					// flag for task loop
@@ -267,14 +265,7 @@ void LX32DMX::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t 
 void LX32DMX::stop ( void ) {
 	_continue_task = 0;
 	while ( _task_active ) {
-		yield();
-	}
-	
-	// is there a better way to end task??
-	// seems if task function exits, there is a crash
-	// 
-	if ( _xHandle != NULL ) {
-		vTaskDelete( _xHandle );
+		vTaskDelay(1);
 	}
 	
 	_xHandle = NULL;
@@ -393,9 +384,9 @@ void LX32DMX::addReceivedByte(uint8_t value) {
 
 void LX32DMX::byteReceived(uint8_t c) {
 	if ( _rdm_task_mode ) {				// this prevents a stray read from setting slots
-		if ( _current_slot < 500 ) {	// strange that bytes will be received when driver
-			return;						// chip remains low(?) perhaps should not test _current_slot
-		}
+		//Serial.println("warning byteReceived in send mode");
+										// strange that bytes will be received when driver
+		return;							// chip remains low(?) perhaps should not test _current_slot
 	}
 
 	if ( c == SLIP_END ) {			//break received
@@ -504,9 +495,7 @@ void LX32DMX::sendRawRDMPacket( uint8_t len ) {		// only valid if connection sta
 	
 	taskYIELD();
 	while ( _rdm_task_mode ) {	//wait for packet to be sent and listening to start
-	    esp_task_wdt_feed();
-		taskYIELD();
-		delay(2);
+		vTaskDelay(2);
 	}
 	
 }
@@ -818,7 +807,7 @@ void LX32DMX::sendRDMDiscoverBranchResponse( void ) {
 	_rdm_len = 24;							// note no start code [0]
 	_rdm_brk_mode = 0;						// send (no break)
 	digitalWrite(_direction_pin, HIGH); 	// could cut off receiving (?)
-	delayWDTYieldMicroseconds(100);
+	hardwareSerialDelayMicroseconds(100);	// make sure this is called from rdmTask thread
 	_rdm_task_mode = DMX_TASK_SEND_RDM;
 	
 	while ( _rdm_task_mode ) {	//wait for packet to be sent and listening to start again
