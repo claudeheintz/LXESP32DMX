@@ -39,6 +39,12 @@ private:
     uint8_t bytes[6];
 
 public:
+	/*!
+	 * @brief default constructor
+	 * @discussion
+	 */
+    UID( void );
+    
     UID( uint64_t u );
     UID(uint8_t m1, uint8_t m2, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4);
     UID(const uint8_t *address);
@@ -71,6 +77,17 @@ public:
     
     void     setBytes(uint64_t u);
     void     setBytes(UID u);
+    
+    /*!
+	 * @brief set the bytes of this UID with individual mfg code and device ID bytes
+	 */
+	 
+    void setBytes(uint8_t m1, uint8_t m2, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4);
+     /*!
+	 * @brief UID as 64 bit integer
+	 */
+    uint64_t getValue ( void );
+    
     uint8_t* rawbytes( void );
 
     virtual size_t printTo(Print& p) const;

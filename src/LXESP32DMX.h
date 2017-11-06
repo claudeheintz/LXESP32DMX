@@ -46,6 +46,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    @section  HISTORY
    v1.0	- first release
    v1.1 - simplifies modifications to esp32-hal-uart.c required for DMX input
+   v1.2 - improve multi-task compatibility
+   
  */
 
 
@@ -76,6 +78,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define DMX_TASK_SEND		1
 #define DMX_TASK_SEND_RDM	2
 #define DMX_TASK_SET_SEND	3
+#define DMX_TASK_PREEMPT	10
 
 #define RDM_NO_DISCOVERY		0
 #define RDM_PARTIAL_DISCOVERY	1
@@ -343,7 +346,10 @@ class LX32DMX {
     *             _rdm_read_handled = 0 if desired to resume passive listening for next break
     */
 	void sendRawRDMPacket( uint8_t len );
-	
+	/*!
+    * @brief sends packet immediately, writes directly to Serial2 without using task loop
+    */
+	void sendRawRDMPacketImmediately( uint8_t len );
 	/*!
     * @brief convenience method for setting fields in the top 20 bytes of an RDM message
     *        that will be sent.

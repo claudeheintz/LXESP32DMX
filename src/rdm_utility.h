@@ -65,12 +65,11 @@ extern "C" {
 #include <Arduino.h>
 
 
+// start codes
 #define RDM_START_CODE			0xCC
 #define RDM_SUB_START_CODE		0x01
 
-
-#define RDM_RESPONSE_TYPE_ACK		0x00
-
+// command classes
 #define RDM_DISCOVERY_COMMAND		0x10
 #define RDM_DISC_COMMAND_RESPONSE	0x11
 #define RDM_GET_COMMAND				0x20
@@ -79,18 +78,27 @@ extern "C" {
 #define RDM_SET_COMMAND_RESPONSE	0x31
 
 
+// response types
+#define RDM_RESPONSE_TYPE_ACK		0x00
+
+// discovery-network management Parameter IDs (PID)
 #define RDM_DISC_UNIQUE_BRANCH	0x0001
 #define RDM_DISC_MUTE			0x0002
 #define RDM_DISC_UNMUTE			0x0003
 
+// product information  PIDs
 #define RDM_DEVICE_INFO			0x0060
 #define RDM_DEVICE_START_ADDR	0x00F0
+#define RDM_DEVICE_MODEL_DESC   0x0080
+#define RDM_DEVICE_MFG_LABEL    0x0081
+#define RDM_DEVICE_DEV_LABEL    0x0082
 
+// control information  PIDs
 #define RDM_IDENTIFY_DEVICE		0x1000
 
+// packet heading constants
 #define RDM_PORT_ONE				0x01
 #define RDM_ROOT_DEVICE				0x0000
-
 
 // RDM packet byte indexes
 #define RDM_IDX_START_CODE				0

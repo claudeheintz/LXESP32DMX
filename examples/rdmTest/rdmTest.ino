@@ -18,34 +18,15 @@
 #include <rdm_utility.h>
 #include "esp_task_wdt.h"
 
-
-// the addresses of the slots to observe
-int test_slotA = 10;
-int test_slotB = 1;
-int test_slotC = 512;
-
-// the levels of those slots
-uint8_t test_levelA = 0;
-uint8_t test_levelB = 0;
-uint8_t test_levelC = 0;
-
-//pins for PWM output
-uint8_t led_pinA = 5;
-uint8_t led_pinB = 18;
-uint8_t led_pinC = 19;
-
-//ledc channels (set to zero to disable)
-uint8_t led_channelA = 1;
-uint8_t led_channelB = 2;
-uint8_t led_channelC = 3;
+#define DMX_DIRECTION_PIN 21
 
 uint8_t testLevel = 0;
 uint8_t loopDivider = 0;
 uint8_t identifyFlag = 1;
 uint8_t tableChangedFlag = 0;
 
-TOD tableOfDevices(0);
-TOD discoveryTree(0);
+TOD tableOfDevices;
+TOD discoveryTree;
 
 UID lower(0,0,0,0,0,0);
 UID upper(0,0,0,0,0,0);
@@ -73,43 +54,6 @@ void setupPWMChannel(uint8_t pin, uint8_t channel) {
 void gammaCorrectedWrite(uint8_t channel, uint8_t level) {
 	if ( channel ) {
 		ledcWrite(channel, level*level);
-	}
-}
-
-/************************************************************************
-	callback for when DMX frame is received
-	Note:  called from receive task
-*************************************************************************/
-
-void receiveCallback(int slots) {
-	if ( slots ) {
-		if ( test_levelA != ESP32DMX.getSlot(test_slotA) ) {
-			test_levelA = ESP32DMX.getSlot(test_slotA);
-			Serial.print(test_slotA);
-			Serial.print(" => ");
-			Serial.println(test_levelA);
-			gammaCorrectedWrite(led_channelA, test_levelA);
-		}
-		if ( test_levelB != ESP32DMX.getSlot(test_slotB) ) {
-			test_levelB = ESP32DMX.getSlot(test_slotB);
-			Serial.print(test_slotB);
-			Serial.print(" => ");
-			Serial.println(test_levelB);
-			gammaCorrectedWrite(led_channelB, test_levelB);
-		}
-		if ( test_levelC != ESP32DMX.getSlot(test_slotC) ) {
-			test_levelC = ESP32DMX.getSlot(test_slotC);
-			Serial.print(test_slotC);
-			Serial.print(" => ");
-			Serial.println(test_levelC);
-			gammaCorrectedWrite(led_channelC, test_levelC);
-		}
-    if ( ESP32DMX.getSlot(test_slotA) == 0 ) {
-      if ( slots != 512 ) {
-        Serial.println("slots = ");
-        Serial.println(slots);
-      }
-    }
 	}
 }
 
@@ -307,13 +251,9 @@ void setup() {
   Serial.begin(115200);
   Serial.print("setup... ");
   
-  setupPWMChannel(led_pinA, led_channelA);
-  setupPWMChannel(led_pinB, led_channelB);
-  setupPWMChannel(led_pinC, led_channelC);
   pinMode(15, OUTPUT);
   
-  ESP32DMX.setDataReceivedCallback(receiveCallback);
-  ESP32DMX.startRDM(4);
+  ESP32DMX.startRDM(DMX_DIRECTION_PIN);
   Serial.println("setup complete");
 }
 
@@ -331,22 +271,23 @@ void loop() {
   Serial.print("loop ");
   Serial.println(testLevel);
 #endif
-  esp_task_wdt_feed();
   vTaskDelay(2);
   
   testRDMDiscovery();
-  
+
+  xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
   ESP32DMX.setSlot(7,testLevel);
   ESP32DMX.setSlot(8,255);
   ESP32DMX.setSlot(371,testLevel);
   ESP32DMX.setSlot(22,255);
+  xSemaphoreGive( ESP32DMX.lxDataLock );
+  
   loopDivider++;
   if ( loopDivider == 4 ) {
     testLevel++;
     loopDivider = 0;
   }
   if ( testLevel == 1 ) {
-    esp_task_wdt_feed();
     vTaskDelay(500);
     identifyFlag = 1;
   }

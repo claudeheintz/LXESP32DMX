@@ -15,6 +15,8 @@
 #include <LXESP32DMX.h>
 #include "esp_task_wdt.h"
 
+#define DMX_DIRECTION_PIN 21
+
 // the addresses of the slots to observe
 int test_slotA = 10;
 int test_slotB = 1;
@@ -55,12 +57,19 @@ void gammaCorrectedWrite(uint8_t channel, uint8_t level) {
 }
 
 /************************************************************************
-	callback for when DMX frame is received
-	Note:  called from receive task
+
+  callback for when DMX frame is received
+  Note:  called from receive task
+  
+  Checks to see if the level of the designated slot has changed
+  and prints the new level to the serial monitor.  If a PWM channel is assigned,
+  it also sets the output level.
+  
 *************************************************************************/
 
 void receiveCallback(int slots) {
 	if ( slots ) {
+	    xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
 		if ( test_levelA != ESP32DMX.getSlot(test_slotA) ) {
 			test_levelA = ESP32DMX.getSlot(test_slotA);
 			Serial.print(test_slotA);
@@ -82,6 +91,7 @@ void receiveCallback(int slots) {
 			Serial.println(test_levelC);
 			gammaCorrectedWrite(led_channelC, test_levelC);
 		}
+		xSemaphoreGive( ESP32DMX.lxDataLock );
 	}
 }
 
@@ -91,6 +101,9 @@ void receiveCallback(int slots) {
 void setup() {
   Serial.begin(115200);
   Serial.print("setup");
+  
+  pinMode(DMX_DIRECTION_PIN, OUTPUT);
+  digitalWrite(DMX_DIRECTION_PIN, LOW);
   
   setupPWMChannel(led_pinA, led_channelA);
   setupPWMChannel(led_pinB, led_channelB);
@@ -103,11 +116,8 @@ void setup() {
 
 
 /************************************************************************
-
-  The main loop checks to see if the level of the designated slot has changed
-  and prints the new level to the serial monitor.  If a PWM channel is assigned,
-  it also sets the output level.
-  
+	main loop just idles
+	vTaskDelay is called to prevent wdt timeout
 *************************************************************************/
 
 void loop() {

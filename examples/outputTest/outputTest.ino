@@ -14,21 +14,28 @@
 #include <LXESP32DMX.h>
 #include "esp_task_wdt.h"
 
+#define DMX_DIRECTION_PIN 21
+
 uint8_t level;
 uint8_t dmxbuffer[DMX_MAX_FRAME];
 
 void setup() {
   Serial.begin(115200);
   Serial.print("setup");
+  
+  pinMode(DMX_DIRECTION_PIN, OUTPUT);
+  digitalWrite(DMX_DIRECTION_PIN, HIGH);
 
   ESP32DMX.startOutput();
   Serial.println("setup complete");
 }
 
 void copyDMXToOutput(void) {
+  xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
 	for (int i=1; i<DMX_MAX_FRAME; i++) {
     	ESP32DMX.setSlot(i , dmxbuffer[i]);
-    }
+   }
+   xSemaphoreGive( ESP32DMX.lxDataLock );
 }
 
 /************************************************************************
