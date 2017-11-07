@@ -78,7 +78,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define DMX_TASK_SEND		1
 #define DMX_TASK_SEND_RDM	2
 #define DMX_TASK_SET_SEND	3
-#define DMX_TASK_PREEMPT	10
 
 #define RDM_NO_DISCOVERY		0
 #define RDM_PARTIAL_DISCOVERY	1
@@ -291,11 +290,6 @@ class LX32DMX {
 	uint8_t rdmTaskMode( void );
 	
 	/*!
-    * @brief indicate if break should be sent before RDM packet
-    */
-	uint8_t rdmBreakMode( void );
-	
-	/*!
     * @brief sets rdm task to receive mode
     * @discussion should only be called by task loop
     *             read assumes response packet starts immediately
@@ -467,11 +461,6 @@ class LX32DMX {
    */
   	uint8_t  _rdm_task_mode;
   	
-  	
-  	/*!
-   * @brief flag indicating RDM task should send a break before writing packet
-   */
-  	uint8_t  _rdm_brk_mode;
   	
   	/*!
    * @brief flag indicating RDM task should send dmx slots

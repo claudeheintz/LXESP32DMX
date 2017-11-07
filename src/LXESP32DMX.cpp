@@ -91,32 +91,33 @@ static void receiveDMX( void * param ) {
 static void rdmTask( void * param ) {
 
   uint8_t task_mode;
+  int c;
   ESP32DMX.setActiveTask(1);
   
   while ( ESP32DMX.continueTask() ) {
-
-	int c = Serial2.read();
+  
+	c = Serial2.read();
+	
 	if ( c >= 0 ) {								// if byte read, receive it...may invoke callback function
 		ESP32DMX.byteReceived(c&0xff);			// eventually will catch up, nothing to read and vTaskDelay will be called
 	} else {
 		task_mode = ESP32DMX.rdmTaskMode();
 		if ( task_mode  ) {
-			if ( task_mode == DMX_TASK_PREEMPT ) {
-				vTaskDelay(2);
-			} else if ( task_mode == DMX_TASK_SEND_RDM ) {
-			    if ( ESP32DMX.rdmBreakMode() ) {
-				   Serial2.sendBreak(150);					// uses hardwareSerialDelayMicroseconds
-				   hardwareSerialDelayMicroseconds(12);
-				   
-				   Serial2.write(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());		// data should be set from function that sets flage to get here
-				} else {																// therefore data should not need to be protected by Mutex
-				   Serial2.write(&ESP32DMX.rdmData()[1], ESP32DMX.rdmPacketLength());	// <-note packet length skips start code
-				}
-				
-				//vTaskDelay(1);            //   <-should not be needed here because rdm should be interleaved with regular NSC/DMX				
-				Serial2.waitFIFOEmpty();	//   vTaskDelay should be called next time though this loop 
-				Serial2.waitTXDone();		//   ( at least next time bytes are not read or task_mode is send )
+			if ( task_mode == DMX_TASK_SEND_RDM ) {
+			
+			   Serial2.sendBreak(150);					// uses hardwareSerialDelayMicroseconds
+			   hardwareSerialDelayMicroseconds(12);
+			   
+			   Serial2.write(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());		// data should be set from function that sets flag to get here
+																					// therefore data should not need to be protected by Mutex
+																					
+				//vTaskDelay(1);            //   <-should not be needed here because rdm should be interleaved with regular NSC/DMX		
+											//   vTaskDelay should be called next time though this loop
+											//   ( at least next time bytes are not read or task_mode is send )	
+				Serial2.waitFIFOEmpty();
+				Serial2.waitTXDone();
 				ESP32DMX._setTaskReceiveRDM();
+				
 			} else {									// otherwise send regular DMX
 				Serial2.sendBreak(150);					// send break first (uses hardwareSerialDelayMicroseconds)
 				hardwareSerialDelayMicroseconds(12);    // <- insure no conflict on another thread/task
@@ -159,7 +160,6 @@ LX32DMX::LX32DMX ( void ) {
 	clearSlots();
 	_task_active = 0;
 	_continue_task = 0;
-	_rdm_brk_mode = 1;
 	_rdm_task_mode = 0;
 }
 
@@ -351,9 +351,9 @@ void LX32DMX::packetComplete( void ) {
 				uint8_t plen = _receivedData[2] + 2;
 				for(int j=0; j<plen; j++) {
 					_rdmData[j] = _receivedData[j];
-					if ( _receive_callback != NULL ) {
-						_rdm_receive_callback(plen);
-					}
+				}
+				if ( _receive_callback != NULL ) {
+					_rdm_receive_callback(plen);
 				}
 			}
 		} else {
@@ -446,10 +446,6 @@ uint8_t LX32DMX::rdmTaskMode( void ) {		// applies to bidirectional RDM connecti
 	return _rdm_task_mode;
 }
 
-uint8_t LX32DMX::rdmBreakMode( void ) {		// applies to bidirectional RDM connection
-	return _rdm_brk_mode;
-}
-
 void LX32DMX::_setTaskReceiveRDM() {			// only valid if connection started using startRDM()
 	digitalWrite(_direction_pin, LOW);		// call from task loop only because receiving starts
 	_current_slot = 0;						// and these flags need to be set
@@ -460,7 +456,6 @@ void LX32DMX::_setTaskReceiveRDM() {			// only valid if connection started using
     	_dmx_state = DMX_STATE_IDLE;		// if not after controller message, wait for a break
     }										// signaling start of packet
     _rdm_task_mode = DMX_TASK_RECEIVE;
-    _rdm_brk_mode = 1;
 }
 
 void LX32DMX::setTaskSendDMX( void ) {		// only valid if connection started using startRDM()
@@ -507,6 +502,7 @@ void LX32DMX::sendRawRDMPacket( uint8_t len ) {		// only valid if connection sta
 	
 }
 
+// call from task loop!!
 void LX32DMX::sendRawRDMPacketImmediately( uint8_t len ) {		// only valid if connection started using startRDM()
 	_rdm_len = len;
 	// calculate checksum:  len should include 2 bytes for checksum at the end
@@ -514,7 +510,6 @@ void LX32DMX::sendRawRDMPacketImmediately( uint8_t len ) {		// only valid if con
 	_rdmPacket[_rdm_len-2] = checksum >> 8;
 	_rdmPacket[_rdm_len-1] = checksum & 0xFF;
 	
-	_rdm_task_mode = DMX_TASK_PREEMPT;					// assume that it was DMX_TASK_RECEIVE, cause task loop to delay
 	digitalWrite(_direction_pin, HIGH);
 	
 	Serial2.sendBreak(88);					// uses hardwareSerialDelayMicroseconds
@@ -524,7 +519,6 @@ void LX32DMX::sendRawRDMPacketImmediately( uint8_t len ) {		// only valid if con
 	Serial2.waitFIFOEmpty();
 	Serial2.waitTXDone();
 	digitalWrite(_direction_pin, LOW);
-	_rdm_task_mode = DMX_TASK_RECEIVE;
 }
 
 void  LX32DMX::setupRDMControllerPacket(uint8_t* pdata, uint8_t msglen, uint8_t port, uint16_t subdevice) {
@@ -760,6 +754,10 @@ uint8_t LX32DMX::sendRDMSetCommand(UID target, uint16_t pid, uint8_t* info, uint
 	return rv;
 }
 
+// device methods should only be called via rdm callback
+// sendRawRDMPacketImmediately and sendRDMDiscoverBranchResponse write to Serial without changing task mode
+// to do this, they use a semaphore to halt the task loop
+
 void LX32DMX::sendRDMGetResponse(UID target, uint16_t pid, uint8_t* info, uint8_t len) {
 	uint8_t plen = RDM_PKT_BASE_MSG_LEN+len;
 	
@@ -831,25 +829,11 @@ void LX32DMX::sendRDMDiscoverBranchResponse( void ) {
 	_rdmPacket[23] = bite | 0xAA;
 	_rdmPacket[24] = bite | 0x55;
 	
-	_rdm_len = 24;							// note no start code [0]
-	_rdm_brk_mode = 0;						// send (no break)
-	digitalWrite(_direction_pin, HIGH); 	// could cut off receiving (?)
-	//hardwareSerialDelayMicroseconds(100);
+	digitalWrite(_direction_pin, HIGH);
 	
-	if ( _rdm_task_mode ) {
-		_rdm_task_mode = DMX_TASK_SEND_RDM;
-		vTaskDelay(2);
-
-		while ( _rdm_task_mode ) {	//wait for packet to be sent and listening to start again
-			taskYIELD();
-			//vTaskDelay(1);	//_rdm_task_mode is set to 0 (receive) after RDM packet is completely sent
-		}
-	} else {
-	    _rdm_task_mode = DMX_TASK_PREEMPT;
-	    Serial2.write(&ESP32DMX.rdmData()[1], ESP32DMX.rdmPacketLength());
-		Serial2.waitFIFOEmpty();
-		Serial2.waitTXDone();
-		_rdm_task_mode = DMX_TASK_RECEIVE;
-	}
+	Serial2.write(&_rdmPacket[1], 24);	// note no start code [0]
+	Serial2.waitFIFOEmpty();
+	Serial2.waitTXDone();
+	digitalWrite(_direction_pin, LOW);
 }
 

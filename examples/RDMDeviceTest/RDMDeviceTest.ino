@@ -15,6 +15,7 @@
 #include <LXESP32DMX.h>
 #include <rdm_utility.h>
 #include <UID.h>
+#include "freertos/task.h"
 
 #define DMX_DIRECTION_PIN 21
 #define DMX_SERIAL_INPUT_PIN 16
@@ -54,6 +55,12 @@ void setup() {
   
   ESP32DMX.startRDM(DMX_DIRECTION_PIN, DMX_SERIAL_INPUT_PIN, DMX_SERIAL_OUTPUT_PIN, DMX_TASK_RECEIVE);
   Serial.println("setup complete");
+
+  // increase the priority of this task (main.cpp sets it at 1);
+ // vTaskPrioritySet(xTaskGetCurrentTaskHandle(), 2);
+  
+  Serial.print("number of tasks is ");
+  Serial.println(uxTaskGetNumberOfTasks());
 }
 
 /************************************************************************
@@ -78,39 +85,19 @@ void gammaCorrectedWrite(uint8_t channel, uint8_t level) {
 
 // ***************** input callback function *************
 
-ICACHE_RAM_ATTR void gotDMXCallback(int slots) {
+void gotDMXCallback(int slots) {
   got_dmx = slots;
 }
 
-ICACHE_RAM_ATTR void gotRDMCallback(int len) {
+void gotRDMCallback(int len) {
   // rdm start code and checksum are validated before this is called
-  got_rdm = len;
-}
-
-/************************************************************************
-
-  The main loop checks to see if dmx input is available (got_dmx>0)
-  And then reads the level of dimmer 1 to set PWM level of LED connected to pin 14
   
-*************************************************************************/
-
-void loop() {
-  if ( got_dmx ) {
-    gammaCorrectedWrite(led_channelA, ESP32DMX.getSlot(start_address));
-    got_dmx = 0;  //reset
-    
-  } else if ( got_rdm ) {
-    
-    uint8_t* rdmdata = ESP32DMX.receivedRDMData();
-    
+  uint8_t* rdmdata = ESP32DMX.receivedRDMData();
   uint8_t cmdclass = rdmdata[RDM_IDX_CMD_CLASS];
-  uint16_t pid = (rdmdata[RDM_IDX_PID_MSB] << 8 ) | rdmdata[RDM_IDX_PID_LSB];
-  
+  uint16_t pid = (rdmdata[RDM_IDX_PID_MSB] << 8 ) | rdmdata[RDM_IDX_PID_LSB];  
 
   if ( cmdclass == RDM_DISCOVERY_COMMAND ) {
-    
     if ( pid == RDM_DISC_UNIQUE_BRANCH ) {
-    
       if ( discovery_enabled ) {
         uint64_t tv = ESP32DMX.THIS_DEVICE_ID.getValue();
         UID u;
@@ -124,6 +111,7 @@ void loop() {
           }
         }
       }
+
     } else {  // mute RDM_DISCOVERY_COMMAND PIDs
       UID destination;
       destination.setBytes(&rdmdata[RDM_IDX_DESTINATION_UID]);
@@ -148,11 +136,9 @@ void loop() {
           ESP32DMX.sendMuteAckRDMResponse(RDM_DISC_COMMAND_RESPONSE, source, RDM_DISC_UNMUTE);
         }
       }
-      
     }
-      
+    // <- discovery command
   } else if ( cmdclass == RDM_GET_COMMAND ) {
-    
     UID destination;
     destination.setBytes(&rdmdata[RDM_IDX_DESTINATION_UID]);
           
@@ -178,6 +164,7 @@ void loop() {
 
        
     }
+    // <- get command
   } else if ( cmdclass == RDM_SET_COMMAND ) {
       UID destination;
       destination.setBytes(&rdmdata[RDM_IDX_DESTINATION_UID]);
@@ -211,9 +198,28 @@ void loop() {
             ESP32DMX.sendAckRDMResponse(RDM_SET_COMMAND_RESPONSE, source, pid);
          }      // <-pid RDM_DEVICE_DEV_LABEL
       }
+      // <- set command
+  } else {
+    got_rdm = len;  // set flag and handle in loop???
   }
-  got_rdm = 0;
-  }               //gotRDM
+
+}
+
+/************************************************************************
+
+  The main loop checks to see if dmx input is available (got_dmx>0)
+  And then reads the level of dimmer 1 to set PWM level of LED connected to pin 14
+  
+*************************************************************************/
+
+void loop() {
+  if ( got_dmx ) {
+    gammaCorrectedWrite(led_channelA, ESP32DMX.getSlot(start_address));
+    got_dmx = 0;  //reset
+    
+  } else if ( got_rdm ) {
+    //Serial.println("some other rdm");
+  }
 
   vTaskDelay(1);
 }
