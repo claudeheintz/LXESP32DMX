@@ -68,7 +68,6 @@ unsigned long IRAM_ATTR privateMicros()
 
 void IRAM_ATTR hardwareSerialDelayMicroseconds(uint32_t us) {
 	for(int k=0; k<us; k++) {	// approximate delay, not a very portable solution
-		esp_task_wdt_feed();	// might be possible to replace this with a timer(?)
 		taskYIELD();			// this may or may not allow another task to run
 	}
 // ccount appears to be CPU dependent and task might switch CPUs making Micros invalid
