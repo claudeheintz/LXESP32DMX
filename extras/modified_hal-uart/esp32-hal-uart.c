@@ -143,6 +143,7 @@ static void IRAM_ATTR _uart_isr(void *arg)
 					xQueueSendFromISR(uart->queue, &c, &xHigherPriorityTaskWoken);
 					uart->dev->int_clr.brk_det = 1;
 				}
+				
 				//uart->dev->int_clr.brk_det = 1;
 			}
         } else {

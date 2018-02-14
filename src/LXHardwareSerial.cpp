@@ -247,13 +247,13 @@ void LXHardwareSerial::waitTXBrkDone() {
 }
 
 void LXHardwareSerial::sendBreak(uint32_t length) {
-	uint8_t txPin;
+	uint8_t gpioSig;
 	if( _uart_nr == 1 ) {
-        txPin = 10;
+        gpioSig = U1TXD_OUT_IDX;
     } else if( _uart_nr == 2 ) {
-        txPin = 17;
+        gpioSig = U2TXD_OUT_IDX;
     } else {
-    	txPin = 1;
+    	gpioSig = U0TXD_OUT_IDX;
     }
     
     uint32_t save_interrupts = _uart->dev->int_ena.val;
@@ -261,15 +261,15 @@ void LXHardwareSerial::sendBreak(uint32_t length) {
     esp_intr_disable(_uart->intr_handle);
     
     // detach 
-    pinMatrixOutDetach(txPin, false, false);
-  	pinMode(txPin, OUTPUT);
+    pinMatrixOutDetach(_tx_gpio_pin, false, false);
+  	pinMode(_tx_gpio_pin, OUTPUT);
   	
-  	digitalWrite(txPin, LOW);
+  	digitalWrite(_tx_gpio_pin, LOW);
   	hardwareSerialDelayMicroseconds(length);
-  	digitalWrite(txPin, HIGH);
+  	digitalWrite(_tx_gpio_pin, HIGH);
   	
   	//reattach
-  	pinMatrixOutAttach(txPin, U2TXD_OUT_IDX, false, false);
+  	pinMatrixOutAttach(_tx_gpio_pin, gpioSig, false, false);
   	
   	esp_intr_enable(_uart->intr_handle);
   	//uartSetInterrupts(_uart, save_interrupts);
@@ -302,3 +302,9 @@ void LXHardwareSerial::disableBreakDetect() {
 void LXHardwareSerial::clearInterrupts() {
 	uartClearInterrupts(_uart);
 }
+
+void LXHardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, int8_t txPin, bool invert) {
+	_tx_gpio_pin = txPin;
+	HardwareSerial::begin(baud, config, rxPin, txPin, invert);
+}
+	
