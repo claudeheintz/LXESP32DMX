@@ -15,6 +15,7 @@
 #include "esp_task_wdt.h"
 
 #define DMX_DIRECTION_PIN 21
+#define DMX_SERIAL_OUTPUT_PIN 17
 
 uint8_t level;
 uint8_t dmxbuffer[DMX_MAX_FRAME];
@@ -26,7 +27,8 @@ void setup() {
   pinMode(DMX_DIRECTION_PIN, OUTPUT);
   digitalWrite(DMX_DIRECTION_PIN, HIGH);
 
-  ESP32DMX.startOutput();
+  pinMode(DMX_SERIAL_OUTPUT_PIN, OUTPUT);
+  ESP32DMX.startOutput(DMX_SERIAL_OUTPUT_PIN);
   Serial.println("setup complete");
 }
 

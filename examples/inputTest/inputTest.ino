@@ -16,6 +16,7 @@
 #include "esp_task_wdt.h"
 
 #define DMX_DIRECTION_PIN 21
+#define DMX_SERIAL_INPUT_PIN 13
 
 // the addresses of the slots to observe
 int test_slotA = 10;
@@ -109,7 +110,8 @@ void setup() {
   setupPWMChannel(led_pinB, led_channelB);
   setupPWMChannel(led_pinC, led_channelC);
 
-  ESP32DMX.startInput();
+  pinMode(DMX_SERIAL_INPUT_PIN, INPUT);
+  ESP32DMX.startInput(DMX_SERIAL_INPUT_PIN);
   ESP32DMX.setDataReceivedCallback(receiveCallback);
   Serial.println("setup complete");
 }
