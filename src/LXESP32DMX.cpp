@@ -370,6 +370,13 @@ void LX32DMX::resetFrame( void ) {
 }
 
 void LX32DMX::addReceivedByte(uint8_t value) {
+	if ( _current_slot == 0 ) {
+		if ( _rdm_read_handled ) {
+			if ( value == 0 ) {
+				return;				// ignore leading zero in RDM reply
+			}
+		}
+	}
 	_receivedData[_current_slot] = value;
 	if ( _current_slot == 2 ) {						//RDM length slot
 		if ( _receivedData[0] == RDM_START_CODE ) {			//RDM start code
@@ -405,8 +412,11 @@ void LX32DMX::byteReceived(uint8_t c) {
 			}
 		}
 		_dmx_state = DMX_STATE_RECEIVING;
-		_current_slot = 0;
-		_packet_length = DMX_MAX_FRAME;						// default to receive complete frame
+		
+		if ( _rdm_read_handled == 0 ) {		//only reset if not directly handling read?
+			_current_slot = 0;				//changed 2/16/18
+		}
+		_packet_length = DMX_MAX_FRAME;		// default to receive complete frame
 	} else {
 		if ( _dmx_state == DMX_STATE_RECEIVING ) {
 			if ( c == SLIP_ESC ) {
@@ -423,7 +433,6 @@ void LX32DMX::byteReceived(uint8_t c) {
 			}
 		}
 	}
-	
 }
 
 void LX32DMX::printReceivedData( void ) {
@@ -576,7 +585,6 @@ uint8_t LX32DMX::sendRDMDiscoveryPacket(UID lower, UID upper, UID* single) {
 	_rdm_read_handled = 1;
 	sendRawRDMPacket(RDM_DISC_UNIQUE_BRANCH_PKTL);
 	delay(3);
-
 	// any bytes read indicate response to discovery packet
 	// check if a single, complete, uncorrupted packet has been received
 	// otherwise, refine discovery search
@@ -592,7 +600,7 @@ uint8_t LX32DMX::sendRDMDiscoveryPacket(UID lower, UID upper, UID* single) {
 		}
 		// 0-7 bytes preamble
 		if ( j < 8 ) {
-			if ( _current_slot == j + 17 ) { //preamble separator plus 16 byte payload
+			if ( _current_slot == (j + 18) ) { //preamble separator plus 16 byte payload + 1
 				uint8_t bindex = j + 1;
 				
 				//calculate checksum of 12 slots representing UID

@@ -19,6 +19,9 @@
 #include "esp_task_wdt.h"
 
 #define DMX_DIRECTION_PIN 21
+#define DMX_SERIAL_INPUT_PIN 16
+#define DMX_SERIAL_OUTPUT_PIN 17
+#define DEBUG_TEST_PIN 15
 
 uint8_t testLevel = 0;
 uint8_t loopDivider = 0;
@@ -251,9 +254,11 @@ void setup() {
   Serial.begin(115200);
   Serial.print("setup... ");
   
-  pinMode(15, OUTPUT);
+  pinMode(DEBUG_TEST_PIN, OUTPUT);
+  pinMode(DMX_SERIAL_OUTPUT_PIN, OUTPUT);
+  pinMode(DMX_SERIAL_INPUT_PIN, INPUT);
   
-  ESP32DMX.startRDM(DMX_DIRECTION_PIN);
+  ESP32DMX.startRDM(DMX_DIRECTION_PIN, DMX_SERIAL_INPUT_PIN, DMX_SERIAL_OUTPUT_PIN);
   Serial.println("setup complete");
 }
 
