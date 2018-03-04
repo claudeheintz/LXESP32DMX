@@ -256,7 +256,7 @@ void LXHardwareSerial::sendBreak(uint32_t length) {
     	gpioSig = U0TXD_OUT_IDX;
     }
     
-    uint32_t save_interrupts = _uart->dev->int_ena.val;
+    //uint32_t save_interrupts = _uart->dev->int_ena.val;
     //uartDisableInterrupts(_uart);
     esp_intr_disable(_uart->intr_handle);
     
