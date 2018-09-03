@@ -20,7 +20,9 @@
 #include "LXESP32DMX.h"
 #include "rdm_utility.h"
 
-LXHardwareSerial Serial2(2);	//must be initialized before ESP32DMX
+HardwareSerial Serial(0);
+
+LXHardwareSerial LXSerial2(2);	//must be initialized before ESP32DMX
 LX32DMX ESP32DMX;
 
 UID LX32DMX::THIS_DEVICE_ID(0x6C, 0x78, 0x00, 0x00, 0x02, 0x01);
@@ -40,16 +42,16 @@ static void sendDMX( void * param ) {
   
   while ( ESP32DMX.continueTask() ) {
   
-    Serial2.sendBreak(150);
+    LXSerial2.sendBreak(150);
     hardwareSerialDelayMicroseconds(12);
     
     xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
-    Serial2.write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
+    LXSerial2.write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
     xSemaphoreGive( ESP32DMX.lxDataLock );
     								//vTaskDelay must be called to avoid wdt and lock up issues
     vTaskDelay(5);					//use time while UART finishes sending to allow other tasks to run
-    Serial2.waitFIFOEmpty();		//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
-    Serial2.waitTXDone();
+    LXSerial2.waitFIFOEmpty();		//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
+    LXSerial2.waitTXDone();
     				  		// break at end is actually for next packet...
 
   }
@@ -69,7 +71,7 @@ static void receiveDMX( void * param ) {
   ESP32DMX.setActiveTask(1);
   
   while ( ESP32DMX.continueTask() ) {
-  	int c = Serial2.read();
+  	int c = LXSerial2.read();
   	if ( c >= 0 ) {
   		ESP32DMX.byteReceived(c&0xff);
   	} else {
@@ -96,7 +98,7 @@ static void rdmTask( void * param ) {
   
   while ( ESP32DMX.continueTask() ) {
   
-	c = Serial2.read();
+	c = LXSerial2.read();
 	
 	if ( c >= 0 ) {								// if byte read, receive it...may invoke callback function
 		ESP32DMX.byteReceived(c&0xff);			// eventually will catch up, nothing to read and vTaskDelay will be called
@@ -105,30 +107,30 @@ static void rdmTask( void * param ) {
 		if ( task_mode  ) {
 			if ( task_mode == DMX_TASK_SEND_RDM ) {
 			
-			   Serial2.sendBreak(150);					// uses hardwareSerialDelayMicroseconds
+			   LXSerial2.sendBreak(150);					// uses hardwareSerialDelayMicroseconds
 			   hardwareSerialDelayMicroseconds(12);
 			   
-			   Serial2.write(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());		// data should be set from function that sets flag to get here
+			   LXSerial2.write(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());		// data should be set from function that sets flag to get here
 																					// therefore data should not need to be protected by Mutex
 																					
 				//vTaskDelay(1);            //   <-should not be needed here because rdm should be interleaved with regular NSC/DMX		
 											//   vTaskDelay should be called next time though this loop
 											//   ( at least next time bytes are not read or task_mode is send )	
-				Serial2.waitFIFOEmpty();
-				Serial2.waitTXDone();
+				LXSerial2.waitFIFOEmpty();
+				LXSerial2.waitTXDone();
 				ESP32DMX._setTaskReceiveRDM();
 				
 			} else {									// otherwise send regular DMX
-				Serial2.sendBreak(150);					// send break first (uses hardwareSerialDelayMicroseconds)
+				LXSerial2.sendBreak(150);					// send break first (uses hardwareSerialDelayMicroseconds)
 				hardwareSerialDelayMicroseconds(12);    // <- insure no conflict on another thread/task
 			
 				xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
-				Serial2.write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
+				LXSerial2.write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
 				xSemaphoreGive( ESP32DMX.lxDataLock );
 														//vTaskDelay must be called to avoid wdt and lock up issues
 				vTaskDelay(5);							//use time while UART finishes sending to allow other tasks to run
-				Serial2.waitFIFOEmpty();				//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
-				Serial2.waitTXDone();
+				LXSerial2.waitFIFOEmpty();				//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
+				LXSerial2.waitTXDone();
 				if ( task_mode == DMX_TASK_SET_SEND ) {
 					ESP32DMX._setTaskModeSend();
 				}
@@ -178,9 +180,9 @@ void LX32DMX::startOutput ( uint8_t pin ) {
 		digitalWrite(_direction_pin, HIGH);
 	}
 	
-	Serial2.begin(250000, SERIAL_8N2, NO_PIN, pin);
+	LXSerial2.begin(250000, SERIAL_8N2, NO_PIN, pin);
 
-	//Serial2.configureRS485(1);
+	//LXSerial2.configureRS485(1);
 	
 	_continue_task = 1;					// flag for task loop
 	BaseType_t xReturned;
@@ -207,8 +209,8 @@ void LX32DMX::startInput ( uint8_t pin ) {
 		digitalWrite(_direction_pin, HIGH);
 	}
 	
-	Serial2.begin(250000, SERIAL_8N2, pin, NO_PIN);
-	Serial2.enableBreakDetect();
+	LXSerial2.begin(250000, SERIAL_8N2, pin, NO_PIN);
+	LXSerial2.enableBreakDetect();
 	
 	_continue_task = 1;					// flag for task loop
 	BaseType_t xReturned;
@@ -240,8 +242,8 @@ void LX32DMX::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t 
 	_direction_pin = dirpin;
 	digitalWrite(_direction_pin, HIGH);//disable input until setup
 	
-	Serial2.begin(250000, SERIAL_8N2, inpin, outpin);
-	Serial2.enableBreakDetect();
+	LXSerial2.begin(250000, SERIAL_8N2, inpin, outpin);
+	LXSerial2.enableBreakDetect();
 
 	_continue_task = 1;
 	BaseType_t xReturned;
@@ -272,7 +274,7 @@ void LX32DMX::stop ( void ) {
 	}
 	
 	_xHandle = NULL;
-	Serial2.end();
+	LXSerial2.end();
 }
 
 void LX32DMX::setDirectionPin( uint8_t pin ) {
@@ -521,12 +523,12 @@ void LX32DMX::sendRawRDMPacketImmediately( uint8_t len ) {		// only valid if con
 	
 	digitalWrite(_direction_pin, HIGH);
 	
-	Serial2.sendBreak(88);					// uses hardwareSerialDelayMicroseconds
+	LXSerial2.sendBreak(88);					// uses hardwareSerialDelayMicroseconds
 	hardwareSerialDelayMicroseconds(12);
 	
-	Serial2.write(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());
-	Serial2.waitFIFOEmpty();
-	Serial2.waitTXDone();
+	LXSerial2.write(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());
+	LXSerial2.waitFIFOEmpty();
+	LXSerial2.waitTXDone();
 	digitalWrite(_direction_pin, LOW);
 }
 
@@ -839,9 +841,9 @@ void LX32DMX::sendRDMDiscoverBranchResponse( void ) {
 	
 	digitalWrite(_direction_pin, HIGH);
 	
-	Serial2.write(&_rdmPacket[1], 24);	// note no start code [0]
-	Serial2.waitFIFOEmpty();
-	Serial2.waitTXDone();
+	LXSerial2.write(&_rdmPacket[1], 24);	// note no start code [0]
+	LXSerial2.waitFIFOEmpty();
+	LXSerial2.waitTXDone();
 	digitalWrite(_direction_pin, LOW);
 }
 
