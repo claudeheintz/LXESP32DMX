@@ -20,8 +20,6 @@
 #include "LXESP32DMX.h"
 #include "rdm_utility.h"
 
-HardwareSerial Serial(0);
-
 LXHardwareSerial LXSerial2(2);	//must be initialized before ESP32DMX
 LX32DMX ESP32DMX;
 
