@@ -52,7 +52,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 #ifndef LX32DMX_H
-#define LX32MX_H
+#define LX32DMX_H
 
 #include <Arduino.h>
 #include <inttypes.h>
@@ -64,6 +64,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "UID.h"
 
 #define DMX_MIN_SLOTS 24
+#define RDM_MAX_FRAME 257
 #define DMX_MAX_SLOTS 512
 #define DMX_MAX_FRAME 513
 
@@ -510,12 +511,12 @@ class LX32DMX {
 	/*!
 	 * @brief Array representing an rdm packet to be sent
 	 */
-	uint8_t  _rdmPacket[257];
+	uint8_t  _rdmPacket[RDM_MAX_FRAME];
 	
 	/*!
 	 * @brief Array representing a received rdm packet
 	 */
-	uint8_t  _rdmData[257];
+	uint8_t  _rdmData[RDM_MAX_FRAME];
   	
 	/*!
     * @brief send/receive task
