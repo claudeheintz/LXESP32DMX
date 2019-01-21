@@ -30,6 +30,9 @@
 #include "soc/io_mux_reg.h"
 #include "soc/gpio_sig_map.h"
 
+#ifndef LXHardwareSerial_H
+#define LXHardwareSerial_H
+
 class LXHardwareSerial : public HardwareSerial {
 	public:
 	LXHardwareSerial(int uart_nr);
@@ -68,3 +71,5 @@ void uartSetInterrupts(uart_t* uart, uint32_t value);
 void uartClearInterrupts(uart_t* uart);
 
 void hardwareSerialDelayMicroseconds(uint32_t us);
+
+#endif

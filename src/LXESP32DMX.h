@@ -440,7 +440,7 @@ class LX32DMX {
     */
     static UID THIS_DEVICE_ID;
     
-  private:
+  protected:
 
    /*!
    * @brief represents phase of sending dmx packet data/break/etc used to change baud settings
