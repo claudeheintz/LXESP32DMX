@@ -10,7 +10,7 @@
     @section  HISTORY
     
     This file (and LXESP32DMX1.h) should be copied to your sketch folder
-    to enable support for a second DMX serial output object, ESP32DMX1.
+   to enable support for a second DMX serial output object, ESP32DMX1.
 
     v1.0 - Added January 2019 as example of second DMX output
 */
