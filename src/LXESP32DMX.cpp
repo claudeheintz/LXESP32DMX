@@ -271,6 +271,8 @@ void LX32DMX::stop ( void ) {
 		vTaskDelay(1);
 	}
 	
+	vTaskDelete( _xHandle );
+	
 	_xHandle = NULL;
 	LXSerial2.end();
 }
