@@ -267,13 +267,12 @@ void LX32DMX::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t 
 
 void LX32DMX::stop ( void ) {
 	_continue_task = 0;
+	
 	while ( _task_active ) {
 		vTaskDelay(1);
 	}
 	
-	vTaskDelete( _xHandle );
-	
-	_xHandle = NULL;
+	_xHandle = NULL;	// task is deleted when while(_continue_task){...} ends
 	LXSerial2.end();
 }
 
