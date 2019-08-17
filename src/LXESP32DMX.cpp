@@ -332,7 +332,7 @@ void LX32DMX::setActiveTask(uint8_t s) {
 void LX32DMX::packetComplete( void ) {
 	if ( _receivedData[0] == 0 ) {				//zero start code is DMX
 		if ( _rdm_read_handled == 0 ) {
-		    if ( _current_slot > 24 ) {
+		    if ( _current_slot > DMX_MIN_SLOTS ) {
 				_slots = _current_slot - 1;				//_current_slot represents next slot so subtract one
 				
 				xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );	// double buffer makes task conflict unlikely, but use mutex anyway
