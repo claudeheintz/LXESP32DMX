@@ -169,7 +169,7 @@ LX32DMX::~LX32DMX ( void ) {
     _rdm_receive_callback = NULL;
 }
 
-void LX32DMX::startOutput ( uint8_t pin ) {
+void LX32DMX::startOutput ( uint8_t pin, UBaseType_t priorityOverIdle ) {
 	if ( _xHandle != NULL ) {
 		stop();
 	}
@@ -189,7 +189,7 @@ void LX32DMX::startOutput ( uint8_t pin ) {
                     "DMX-Out",              /* Text name for the task. */
                     8192,               /* Stack size in words, not bytes. */
                     this,               /* Parameter passed into the task. */
-                    tskIDLE_PRIORITY+1,   /* Priority at which the task is created. */
+                    tskIDLE_PRIORITY+priorityOverIdle,   /* Priority at which the task is created. */
                     &_xHandle );
             
     if( xReturned != pdPASS ) {
@@ -197,7 +197,7 @@ void LX32DMX::startOutput ( uint8_t pin ) {
     }
 }
 
-void LX32DMX::startInput ( uint8_t pin ) {
+void LX32DMX::startInput ( uint8_t pin , UBaseType_t priorityOverIdle) {
 	if ( _xHandle != NULL ) {
 		stop();
 	}
@@ -217,7 +217,7 @@ void LX32DMX::startInput ( uint8_t pin ) {
                     "DMX-In",              /* Text name for the task. */
                     8192,               /* Stack size in words, not bytes. */
                     this,               /* Parameter passed into the task. */
-                    tskIDLE_PRIORITY+1,   /* Priority at which the task is created. */
+                    tskIDLE_PRIORITY+priorityOverIdle,   /* Priority at which the task is created. */
                     &_xHandle );
             
     if( xReturned != pdPASS ) {
@@ -231,7 +231,7 @@ void LX32DMX::startInput ( uint8_t pin ) {
 	}
 }
 
-void LX32DMX::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t direction ) {
+void LX32DMX::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t direction, UBaseType_t priorityOverIdle ) {
 	if ( _xHandle != NULL ) {
 		stop();
 	}
@@ -250,7 +250,7 @@ void LX32DMX::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t 
                     "DMX-Task",         /* Text name for the task. */
                     8192,               /* Stack size in words, not bytes. */
                     this,               /* Parameter passed into the task. */
-                    tskIDLE_PRIORITY+1,   /* Priority at which the task is created. */
+                    tskIDLE_PRIORITY+priorityOverIdle,   /* Priority at which the task is created. */
                     &_xHandle);
             
     if( xReturned != pdPASS ) {

@@ -10,13 +10,14 @@
 
     v1.00 - First release
     v1.1  - Adds PWM output
+    v1.2  - 
 */
 /**************************************************************************/
 #include <LXESP32DMX.h>
 #include "esp_task_wdt.h"
 
-#define DMX_DIRECTION_PIN 21
-#define DMX_SERIAL_INPUT_PIN 13
+#define DMX_DIRECTION_PIN 32
+#define DMX_SERIAL_INPUT_PIN 34
 
 // the addresses of the slots to observe
 int test_slotA = 10;
@@ -29,7 +30,7 @@ uint8_t test_levelB = 0;
 uint8_t test_levelC = 0;
 
 //pins for PWM output
-uint8_t led_pinA = 5;
+uint8_t led_pinA = 12;
 uint8_t led_pinB = 18;
 uint8_t led_pinC = 19;
 
@@ -37,6 +38,8 @@ uint8_t led_pinC = 19;
 uint8_t led_channelA = 1;
 uint8_t led_channelB = 2;
 uint8_t led_channelC = 3;
+
+uint8_t dataChanged = 1;
 
 /************************************************************************
 	attach a pin to a channel and configure PWM output
@@ -63,8 +66,11 @@ void gammaCorrectedWrite(uint8_t channel, uint8_t level) {
   Note:  called from receive task
   
   Checks to see if the level of the designated slot has changed
-  and prints the new level to the serial monitor.  If a PWM channel is assigned,
-  it also sets the output level.
+  and sets the dataChanged flag.
+
+  Processing in this callback should be minimal.
+
+  Instead, use a flag and do more intense processing in a lower priority task.
   
 *************************************************************************/
 
@@ -73,24 +79,15 @@ void receiveCallback(int slots) {
 	    xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
 		if ( test_levelA != ESP32DMX.getSlot(test_slotA) ) {
 			test_levelA = ESP32DMX.getSlot(test_slotA);
-			Serial.print(test_slotA);
-			Serial.print(" => ");
-			Serial.println(test_levelA);
-			gammaCorrectedWrite(led_channelA, test_levelA);
+			dataChanged = 1;
 		}
 		if ( test_levelB != ESP32DMX.getSlot(test_slotB) ) {
 			test_levelB = ESP32DMX.getSlot(test_slotB);
-			Serial.print(test_slotB);
-			Serial.print(" => ");
-			Serial.println(test_levelB);
-			gammaCorrectedWrite(led_channelB, test_levelB);
+			dataChanged = 1;
 		}
 		if ( test_levelC != ESP32DMX.getSlot(test_slotC) ) {
 			test_levelC = ESP32DMX.getSlot(test_slotC);
-			Serial.print(test_slotC);
-			Serial.print(" => ");
-			Serial.println(test_levelC);
-			gammaCorrectedWrite(led_channelC, test_levelC);
+			dataChanged = 1;
 		}
 		xSemaphoreGive( ESP32DMX.lxDataLock );
 	}
@@ -110,10 +107,13 @@ void setup() {
   setupPWMChannel(led_pinB, led_channelB);
   setupPWMChannel(led_pinC, led_channelC);
 
-  pinMode(DMX_SERIAL_INPUT_PIN, INPUT);
-  ESP32DMX.startInput(DMX_SERIAL_INPUT_PIN);
+  Serial.print(", set callback");
   ESP32DMX.setDataReceivedCallback(receiveCallback);
-  Serial.println("setup complete");
+
+  Serial.print(", start dmx input");
+  ESP32DMX.startInput(DMX_SERIAL_INPUT_PIN);
+  
+  Serial.println(", setup complete.");
 }
 
 
@@ -123,5 +123,21 @@ void setup() {
 *************************************************************************/
 
 void loop() {
-  delay(25);
+  //delay(25);
+  if ( dataChanged ) {
+    dataChanged = 0;
+    Serial.print(test_slotA);
+    Serial.print(" => ");
+    Serial.println(test_levelA);
+    gammaCorrectedWrite(led_channelA, test_levelA);
+    Serial.print(test_slotB);
+    Serial.print(" => ");
+    Serial.println(test_levelB);
+    gammaCorrectedWrite(led_channelB, test_levelB);
+    Serial.print(test_slotC);
+    Serial.print(" => ");
+    Serial.println(test_levelC);
+    gammaCorrectedWrite(led_channelC, test_levelC);
+  }
+  
 }

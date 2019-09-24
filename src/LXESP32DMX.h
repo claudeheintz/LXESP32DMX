@@ -124,21 +124,25 @@ class LX32DMX {
     * @discussion begins serial TX connection.
     			  Creates task that continuously sends dmx data.
    */
-   void startOutput( uint8_t pin=17 );
+   void startOutput( uint8_t pin=17, UBaseType_t priorityOverIdle=1 );
    
    /*!
     * @brief starts task that continuously reads DMX data
     * @discussion begins serial RX connection.
     *             Creates task that reads bytes from RX queue.
    */
-   void startInput( uint8_t pin=16 );
+   void startInput( uint8_t pin=16, UBaseType_t priorityOverIdle=6 );
    
    /*!
     * @brief starts task that continuously reads and optionally sends DMX data.
     * @discussion Creates task that continuously sends and/or receives dmx data.
     *			  IMPORTANT note: switching direction requires use of direction pin.
    */
-   void startRDM ( uint8_t dirpin, uint8_t inpin=16, uint8_t outpin=17, uint8_t direction=1 );
+   void startRDM ( uint8_t dirpin,
+   				   uint8_t inpin=16,
+   				   uint8_t outpin=17,
+   				   uint8_t direction=1,
+   				   UBaseType_t priorityOverIdle=1);
    
    /*!
     * @brief disables transmission and tx interrupt
