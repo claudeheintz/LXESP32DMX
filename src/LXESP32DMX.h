@@ -130,13 +130,25 @@ class LX32DMX {
     * @brief starts task that continuously reads DMX data
     * @discussion begins serial RX connection.
     *             Creates task that reads bytes from RX queue.
+    *
+    *			  Warning: Calls HardwareSerial::begin which flushes input queue
+    *					   until empty.
+    *                      If serial data is present (DMX stream on input pin)
+    *					   when startInput is called, flush and therefore
+    *					   HardwareSerial::begin can hang...
    */
-   void startInput( uint8_t pin=16, UBaseType_t priorityOverIdle=6 );
+   void startInput( uint8_t pin=16, UBaseType_t priorityOverIdle=1 );
    
    /*!
     * @brief starts task that continuously reads and optionally sends DMX data.
     * @discussion Creates task that continuously sends and/or receives dmx data.
     *			  IMPORTANT note: switching direction requires use of direction pin.
+    *
+    *			  Warning: Calls HardwareSerial::begin which flushes input queue
+    *					   until empty.
+    *                      If serial data is present (DMX stream on input pin)
+    *					   when startInput is called, flush and therefore
+    *					   HardwareSerial::begin can hang...
    */
    void startRDM ( uint8_t dirpin,
    				   uint8_t inpin=16,

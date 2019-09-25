@@ -100,8 +100,7 @@ void setup() {
   Serial.begin(115200);
   Serial.print("setup");
   
-  pinMode(DMX_DIRECTION_PIN, OUTPUT);
-  digitalWrite(DMX_DIRECTION_PIN, LOW);
+  ESP32DMX.setDirectionPin(DMX_DIRECTION_PIN);
   
   setupPWMChannel(led_pinA, led_channelA);
   setupPWMChannel(led_pinB, led_channelB);
@@ -123,7 +122,6 @@ void setup() {
 *************************************************************************/
 
 void loop() {
-  //delay(25);
   if ( dataChanged ) {
     dataChanged = 0;
     Serial.print(test_slotA);
@@ -138,6 +136,8 @@ void loop() {
     Serial.print(" => ");
     Serial.println(test_levelC);
     gammaCorrectedWrite(led_channelC, test_levelC);
+  } else {
+    delay(25);
   }
   
 }
