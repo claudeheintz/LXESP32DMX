@@ -8,6 +8,13 @@
     Print changes in the levels of three slots in DMX serial input
     @section  HISTORY
 
+    NOTE HardwareSerial::begin flushes the input queue until it is empty.
+         If DMX serial is present on the input pin when ESP32DMX.startInput
+         is called, it is possible that flush will fail to empty the queue
+         because it is being refilled by the DMX as fast as it is emptied.
+         This will result in startInput hanging.  To avoid this, plug in the
+         DMX input after the sketch has called setup.
+
     v1.00 - First release
     v1.1  - Adds PWM output
     v1.2  - 
