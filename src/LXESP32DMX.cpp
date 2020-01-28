@@ -51,7 +51,6 @@ static void sendDMX( void * param ) {
     LXSerial2.waitFIFOEmpty();		//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
     LXSerial2.waitTXDone();
     				  		// break at end is actually for next packet...
-
   }
   
   // signal task end and wait for task to be deleted
@@ -193,7 +192,11 @@ void LX32DMX::startOutput ( uint8_t pin, UBaseType_t priorityOverIdle ) {
                     &_xHandle );
             
     if( xReturned != pdPASS ) {
-        _xHandle = NULL;
+        _xHandle = NULL;				// task create failed
+    } else {
+    	while ( _task_active == 0 ) {	// insure task is running before returning
+    		vTaskDelay(1);
+    	}
     }
 }
 
