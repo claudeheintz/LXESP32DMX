@@ -194,9 +194,9 @@ void LX32DMX::startOutput ( uint8_t pin, UBaseType_t priorityOverIdle ) {
     if( xReturned != pdPASS ) {
         _xHandle = NULL;				// task create failed
     } else {
-    	while ( _task_active == 0 ) {	// insure task is running before returning
-    		vTaskDelay(1);
-    	}
+//    	while ( _task_active == 0 ) {	// insure task is running before returning
+//    		vTaskDelay(1);
+//    	}
     }
 }
 
