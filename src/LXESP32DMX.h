@@ -286,6 +286,19 @@ class LX32DMX {
     */
    void setDataReceivedCallback(LXRecvCallback callback);
    
+   
+   /*!
+    * @brief Set flag indicating a dmx packet has been sent.
+   */
+   void setDMXPacketSent( uint8_t ps );
+   
+   /*!
+    * @brief Flag indicating if a dmx packet has been sent.
+   */
+   uint8_t dmxPacketSent();
+   
+   /************************************ RDM Methods ***********************************/
+   
    /*!
     * @brief Function called when RDM frame has been read
     * @discussion Sets a pointer to a function that is called
@@ -294,8 +307,6 @@ class LX32DMX {
     *             Best used to set a flag that is polled outside of ISR for available data.
     */
    void setRDMReceivedCallback(LXRecvCallback callback);
-   
-   /************************************ RDM Methods ***********************************/
    
    	/*!
     * @brief indicate if dmx frame should be sent by bi-directional task loop
@@ -462,6 +473,11 @@ class LX32DMX {
    * @brief represents phase of sending dmx packet data/break/etc used to change baud settings
    */
   	uint8_t  _dmx_state;
+  	
+  /*!
+   * @brief set to 0 in startOutput, set to 1 after first packet
+   */
+  	uint8_t  _dmx_sent;
   	
    /*!
    * @brief flag to continuously loop an I/O task
