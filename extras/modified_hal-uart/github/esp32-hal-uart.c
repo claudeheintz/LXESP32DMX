@@ -97,7 +97,7 @@ static void IRAM_ATTR _uart_isr(void *arg)
         uart->dev->int_clr.frm_err = 1;
         uart->dev->int_clr.rxfifo_tout = 1;
         
-    	//begin mod ****************************************************        
+//begin mod ****************************************************        
 #if USE_SLIP_FOR_BREAK_DETECT
 
 		// if break detect interrupt is enabled, use SLIP encoding 
