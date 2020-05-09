@@ -23,8 +23,8 @@
 #include <LXESP32DMX.h>
 #include "esp_task_wdt.h"
 
-#define DMX_DIRECTION_PIN 32
-#define DMX_SERIAL_INPUT_PIN 34
+#define DMX_DIRECTION_PIN 21
+#define DMX_SERIAL_INPUT_PIN 16
 
 // the addresses of the slots to observe
 int test_slotA = 10;
