@@ -48,8 +48,8 @@ void copyDMXToOutput(void) {
 
 void loop() {
   dmxbuffer[1] = level;
-  dmxbuffer[7] = level;
-  dmxbuffer[8] = level;
+  dmxbuffer[101] = level;
+  dmxbuffer[103] = level;
   dmxbuffer[510] = level;
   dmxbuffer[511] = level;
   dmxbuffer[512] = level;
