@@ -23,7 +23,10 @@
 #include "freertos/semphr.h"
 #include "rom/ets_sys.h"
 #include "esp_attr.h"
-#include "esp_intr.h"
+// for 2.0.0_rc
+// #include "esp_intr_alloc.h"
+// for 1.0.6 and 1.0.5
+// #include "esp_intr.h"		
 #include "rom/uart.h"
 #include "soc/uart_reg.h"
 #include "soc/uart_struct.h"
