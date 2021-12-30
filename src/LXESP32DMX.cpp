@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "driver/uart.h"
 #include "LXESP32DMX.h"
 #include "rdm_utility.h"
 
@@ -24,6 +25,9 @@ LXHardwareSerial LXSerial2(2);	//must be initialized before ESP32DMX
 LX32DMX ESP32DMX;
 
 UID LX32DMX::THIS_DEVICE_ID(0x6C, 0x78, 0x00, 0x00, 0x02, 0x01);
+
+#define RD_BUF_SIZE 513
+static QueueHandle_t uart_queue;
 
 
 // disconnected pin definition
@@ -146,6 +150,37 @@ static void rdmTask( void * param ) {
   vTaskDelete( NULL );	// delete this task
 }
 
+static void read_queue_task(void *param) {
+    uart_event_t event;
+    size_t buffered_size;
+    uint8_t* dtmp = (uint8_t*) malloc(RD_BUF_SIZE);
+    bool initial_break = false;
+    
+    while ( ESP32DMX.continueTask() ) {
+        //Waiting for UART event.
+        if ( xQueueReceive(uart_queue, (void * )&event, (portTickType)portMAX_DELAY) ) {
+            bzero(dtmp, RD_BUF_SIZE);
+            switch(event.type) {
+            	case UART_DATA:
+            		
+            		if ( initial_break ) {
+            		
+            		}
+            	case UART_BREAK:
+            		initial_break = true;
+            		Serial.println("_");
+            	default:					// error?
+            		initial_break = false;
+            
+            }	// switch
+        }		// x q recv
+	} 			//while
+	
+	// signal task end and wait for task to be deleted
+	ESP32DMX.setActiveTask(0);
+  
+	vTaskDelete( NULL );	// delete this task
+}
 
 /*******************************************************************************
  ***********************  LX32DMX member functions  ********************/
@@ -209,7 +244,7 @@ void LX32DMX::startInput ( uint8_t pin , UBaseType_t priorityOverIdle) {
 		digitalWrite(_direction_pin, HIGH);
 	}
 	
-	LXSerial2.begin(250000, SERIAL_8N2, pin, NO_PIN);
+	LXSerial2.begin(250000, SERIAL_8N2, pin, NO_PIN, false, 20000UL, 64, 128, &uart_queue);
 	LXSerial2.enableBreakDetect();
 	
 	_continue_task = 1;					// flag for task loop
@@ -221,6 +256,8 @@ void LX32DMX::startInput ( uint8_t pin , UBaseType_t priorityOverIdle) {
                     this,               /* Parameter passed into the task. */
                     tskIDLE_PRIORITY+priorityOverIdle,   /* Priority at which the task is created. */
                     &_xHandle );
+                    
+	// NOTE read_queue_task replaces receiveDMX for SDK 2.0.2 when finished
             
     if( xReturned != pdPASS ) {
         _xHandle = NULL;
