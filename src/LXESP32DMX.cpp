@@ -244,8 +244,12 @@ void LX32DMX::startInput ( uint8_t pin , UBaseType_t priorityOverIdle) {
 		digitalWrite(_direction_pin, HIGH);
 	}
 	
+	
 	LXSerial2.begin(250000, SERIAL_8N2, pin, NO_PIN, false, 20000UL, 64, 128, &uart_queue);
+	Serial.println("did begin uart");
 	LXSerial2.enableBreakDetect();
+	
+	Serial.println("will make task");
 	
 	_continue_task = 1;					// flag for task loop
 	BaseType_t xReturned;
@@ -256,6 +260,8 @@ void LX32DMX::startInput ( uint8_t pin , UBaseType_t priorityOverIdle) {
                     this,               /* Parameter passed into the task. */
                     tskIDLE_PRIORITY+priorityOverIdle,   /* Priority at which the task is created. */
                     &_xHandle );
+                    
+	Serial.println("did make task");
                     
 	// NOTE read_queue_task replaces receiveDMX for SDK 2.0.2 when finished
             

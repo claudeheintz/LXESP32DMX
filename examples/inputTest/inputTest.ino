@@ -42,9 +42,9 @@ uint8_t led_pinB = 33;
 uint8_t led_pinC = 25;
 
 //ledc channels (set to zero to disable)
-uint8_t led_channelA = 1;
-uint8_t led_channelB = 2;
-uint8_t led_channelC = 3;
+uint8_t led_channelA = 0;
+uint8_t led_channelB = 1;
+uint8_t led_channelC = 2;
 
 uint8_t dataChanged = 1;
 
@@ -54,7 +54,7 @@ uint8_t dataChanged = 1;
 void setupPWMChannel(uint8_t pin, uint8_t channel) {
 	if ( channel ) {
 		ledcAttachPin(pin, channel);
-		ledcSetup(channel, 12000, 16); // 12 kHz PWM, 8-bit resolution
+		ledcSetup(channel, 4000, 8); // 12 kHz PWM, 8-bit resolution
 	}
 }
 
@@ -63,7 +63,7 @@ void setupPWMChannel(uint8_t pin, uint8_t channel) {
 *************************************************************************/
 void gammaCorrectedWrite(uint8_t channel, uint8_t level) {
 	if ( channel ) {
-		ledcWrite(channel, level*level);
+    ledcWrite(channel, level*level);
 	}
 }
 
@@ -114,7 +114,7 @@ void setup() {
   setupPWMChannel(led_pinC, led_channelC);
 
   Serial.print(", set callback");
-  ESP32DMX.setDataReceivedCallback(receiveCallback);
+  //ESP32DMX.setDataReceivedCallback(receiveCallback);
 
   Serial.print(", start dmx input");
   ESP32DMX.startInput(DMX_SERIAL_INPUT_PIN);

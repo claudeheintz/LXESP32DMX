@@ -21,7 +21,6 @@
 // uart_struct_t is also defined in esp32-hal-uart.c
 // defined here because to access fields in uart_t* in the following mods
 struct uart_struct_t {
-    uart_dev_t * dev;
 #if !CONFIG_DISABLE_HAL_LOCKS
     xSemaphoreHandle lock;
 #endif
@@ -36,6 +35,7 @@ struct uart_struct_t {
 #else
 #define UART_MUTEX_LOCK()    do {} while (xSemaphoreTake(uart->lock, portMAX_DELAY) != pdPASS)
 #define UART_MUTEX_UNLOCK()  xSemaphoreGive(uart->lock)
+#warning CONFIG_DISABLE_HAL_LOCKS is false...
 #endif
 
 
@@ -238,11 +238,11 @@ void uartSetToTwoStopBits(uart_t* uart) {
 }
 
 void uartEnableBreakDetect(uart_t* uart) {
-	UART_MUTEX_LOCK();
+	//UART_MUTEX_LOCK();
 	uart->dev->int_ena.brk_det = 1;
     uart->dev->conf1.rxfifo_full_thrhd = 1;
     uart->dev->auto_baud.val = 0;
-    UART_MUTEX_UNLOCK();
+    //UART_MUTEX_UNLOCK();
 }
 
 void uartDisableBreakDetect(uart_t* uart) {
@@ -461,9 +461,15 @@ void LXHardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, 
 	_tx_gpio_pin = txPin;
 	_rx_gpio_pin = rxPin;
 	
-	// SDK 2.0.2 replace call to super begin() with version installing queue
-	//HardwareSerial::begin(baud, config, rxPin, txPin, invert, timeout_ms, rxfifo_full_thrhd);
+	Serial.print("test uart");
+	Serial.println((int)_uart);
 	
+	// SDK 2.0.2 replace call to super begin() with version installing queue
+	HardwareSerial::begin(baud, config, rxPin, txPin, invert, timeout_ms, rxfifo_full_thrhd);
+	
+	Serial.println((int)_uart->lock);
+
+/*
 	if(0 > _uart_nr || _uart_nr >= SOC_UART_NUM) {
         log_e("Serial number is invalid, please use numers from 0 to %u", SOC_UART_NUM - 1);
         return;
@@ -490,9 +496,10 @@ void LXHardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, 
     }
 #endif
 
-    _uart = uartQueueBegin(_uart_nr, baud ? baud : 9600, config, rxPin, txPin, _rxBufferSize, invert, rxfifo_full_thrhd, qSize, q);
+    _uart = uartBegin(_uart_nr, baud ? baud : 9600, config, rxPin, txPin, _rxBufferSize, invert, rxfifo_full_thrhd);
     
     //NOTE does not detect Baud like HardwareSerial.begin()
+*/
 	
 }
 	
