@@ -154,14 +154,7 @@ void IRAM_ATTR uartWaitFIFOEmpty(uart_t* uart) {
 	if ( uart == NULL ) {
 		return;
 	}
-	uint16_t timeout = 0;
-    while(uart->dev->status.txfifo_cnt != 0x00) {
-        timeout++;
-        if ( timeout > 20000 ) {
-        	break;
-        }
-        hardwareSerialDelayMicroseconds(10);
-    }
+	uart_wait_tx_done(uart->num, 20000);
 }
 
 void IRAM_ATTR uartWaitRxFIFOEmpty(uart_t* uart) {
@@ -231,18 +224,16 @@ void uartConfigureSendBreak(uart_t* uart, uint8_t en, uint8_t len, uint16_t idle
 //				https://esp32.com/viewtopic.php?f=2&t=1431
 
 void uartSetToTwoStopBits(uart_t* uart) {
-	UART_MUTEX_LOCK();
-	uart->dev->conf0.stop_bit_num = 1;
-	uart->dev->rs485_conf.dl1_en = 1;
-	UART_MUTEX_UNLOCK();
+	uart_set_stop_bits(uart->num, 2);
 }
 
 void uartEnableBreakDetect(uart_t* uart) {
-	//UART_MUTEX_LOCK();
+	UART_MUTEX_LOCK();
+	
 	uart->dev->int_ena.brk_det = 1;
     uart->dev->conf1.rxfifo_full_thrhd = 1;
     uart->dev->auto_baud.val = 0;
-    //UART_MUTEX_UNLOCK();
+    UART_MUTEX_UNLOCK();
 }
 
 void uartDisableBreakDetect(uart_t* uart) {
