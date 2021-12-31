@@ -45,10 +45,13 @@ class LXHardwareSerial : public HardwareSerial {
 	void waitFIFOEmpty();
 	void waitTXDone();
     void sendBreak(uint32_t length);
+    void writeBytesWithBreak(const void* src, size_t size);
 	void setBaudRate(uint32_t rate);
 	void setToTwoStopBits();
 	void enableBreakDetect();
 	void disableBreakDetect();
+	void clearInterrupts();
+	
 	//void begin(unsigned long baud, uint32_t config=SERIAL_8N1, int8_t rxPin=-1, int8_t txPin=-1, bool invert=false);
 	void begin(unsigned long baud, uint32_t config=SERIAL_8N1, int8_t rxPin=-1, int8_t txPin=-1, bool invert=false, unsigned long timeout_ms = 20000UL, uint8_t rxfifo_full_thrhd = 112, int qSize = 0, QueueHandle_t* q = NULL);
 	

@@ -17,6 +17,7 @@
 #include "freertos/portmacro.h"
 #include "esp_task_wdt.h"
 #include "driver/uart.h"
+#include "hal/uart_types.h"
 
 // uart_struct_t is also defined in esp32-hal-uart.c
 // defined here because to access fields in uart_t* in the following mods
@@ -156,7 +157,8 @@ void IRAM_ATTR uartWaitFIFOEmpty(uart_t* uart) {
 	if ( uart == NULL ) {
 		return;
 	}
-	uart_wait_tx_done(uart->num, 20000);
+	uart_dev_t *hw = UART_LL_GET_HW(uart->num);
+	uart_wait_tx_done(uart->num, portMAX_DELAY);
 }
 
 void IRAM_ATTR uartWaitTXDone(uart_t* uart) {
@@ -164,7 +166,7 @@ void IRAM_ATTR uartWaitTXDone(uart_t* uart) {
 		return;
 	}
     
-   uart_wait_tx_done(uart->num, 20000);
+   uart_wait_tx_done(uart->num, portMAX_DELAY);
    uart_clear_intr_status(uart->num, UART_INTR_TX_DONE);
    //uart->dev->int_clr.tx_done = 1;
 }
@@ -201,6 +203,12 @@ uint32_t _get_effective_baudrate(uint32_t baudrate)
     }
 }
 
+/*
+ * uartQueueBegin is copied from esp32-hal-uart.c uartBegin and is
+ * almost identical except no access to _uart_bus_array which is declared static and
+ * is local to esp32-hal-uart.c
+ * Also, qSize and q are passed to uart_driver_install
+ */
 uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8_t rxPin, int8_t txPin, uint16_t queueLen, bool inverted, uint8_t rxfifo_full_thrhd, int qSize, QueueHandle_t* q)
 {
     if(uart_nr >= SOC_UART_NUM) {
@@ -210,7 +218,6 @@ uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8
     if(rxPin == -1 && txPin == -1) {
         return NULL;
     }
-    
     
 	/* use regular uartBegin() to get pointer to uart
 	 * wasteful, perhaps, but it appears that there's no other way
@@ -257,6 +264,7 @@ uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8
       )
       
       note when tx_buffer_size == 0, write will block until all data is sent
+      or, with send writeBytesWithBreak does not return until after the break has been sent
 */
 
     ESP_ERROR_CHECK(uart_driver_install(uart_nr, 2*queueLen, 0, qSize, q, 0));
@@ -332,12 +340,20 @@ void LXHardwareSerial::sendBreak(uint32_t length) {
   	//uartSetInterrupts(_uart, save_interrupts);
 }
 
+void LXHardwareSerial::writeBytesWithBreak(const void* src, size_t size) {
+	//  //int uart_write_bytes_with_break(uart_port_t uart_num, const void* src, size_t size, int brk_len);
+	//bit period 4μs break 176μs typical break = 44 bit periods for break
+    int check = uart_write_bytes_with_break(_uart->num, src, size, 44);	
+    Serial.print("     . ");
+	Serial.println(check);	
+}
+
 void LXHardwareSerial::setBaudRate(uint32_t rate) {
 	uartSetBaudRate(_uart, rate);
 }
 
 void LXHardwareSerial::setToTwoStopBits() {
-	uart_set_stop_bits(_uart->num, 2);
+	uart_set_stop_bits(_uart->num, UART_STOP_BITS_2);
 }
 
 void LXHardwareSerial::enableBreakDetect() {
@@ -350,22 +366,18 @@ void LXHardwareSerial::disableBreakDetect() {
 
 void LXHardwareSerial::clearInterrupts() {
 	uart_clear_intr_status(_uart->num, 0xffffffff);
-	uartClearInterrupts(_uart);
 }
 
 void LXHardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, int8_t txPin, bool invert, unsigned long timeout_ms, uint8_t rxfifo_full_thrhd, int qSize, QueueHandle_t* q) {
 	_tx_gpio_pin = txPin;
 	_rx_gpio_pin = rxPin;
 	
-	Serial.print("test uart");
-	Serial.println((int)_uart);
-	
 	// SDK 2.0.2 replace call to super begin() with version installing queue
-	HardwareSerial::begin(baud, config, rxPin, txPin, invert, timeout_ms, rxfifo_full_thrhd);
+	//HardwareSerial::begin(baud, config, rxPin, txPin, invert, timeout_ms, rxfifo_full_thrhd);
 	
-	Serial.println((int)_uart->lock);
+	Serial.println("\nused this method");
 
-/*
+
 	if(0 > _uart_nr || _uart_nr >= SOC_UART_NUM) {
         log_e("Serial number is invalid, please use numers from 0 to %u", SOC_UART_NUM - 1);
         return;
@@ -392,10 +404,9 @@ void LXHardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, 
     }
 #endif
 
-    _uart = uartBegin(_uart_nr, baud ? baud : 9600, config, rxPin, txPin, _rxBufferSize, invert, rxfifo_full_thrhd);
+    _uart = uartQueueBegin(_uart_nr, baud ? baud : 9600, config, rxPin, txPin, _rxBufferSize, invert, rxfifo_full_thrhd, qSize, q);
     
     //NOTE does not detect Baud like HardwareSerial.begin()
-*/
 	
 }
 	
