@@ -43,17 +43,12 @@ class LXHardwareSerial : public HardwareSerial {
 	void end();
 	
 	void waitFIFOEmpty();
-	void waitRxFIFOEmpty();
 	void waitTXDone();
-	void waitTXBrkDone();
     void sendBreak(uint32_t length);
 	void setBaudRate(uint32_t rate);
-	void configureRS485(uint8_t en);
-	void configureSendBreak(uint8_t en, uint8_t len, uint16_t idle);
 	void setToTwoStopBits();
 	void enableBreakDetect();
 	void disableBreakDetect();
-	void clearInterrupts();
 	//void begin(unsigned long baud, uint32_t config=SERIAL_8N1, int8_t rxPin=-1, int8_t txPin=-1, bool invert=false);
 	void begin(unsigned long baud, uint32_t config=SERIAL_8N1, int8_t rxPin=-1, int8_t txPin=-1, bool invert=false, unsigned long timeout_ms = 20000UL, uint8_t rxfifo_full_thrhd = 112, int qSize = 0, QueueHandle_t* q = NULL);
 	
@@ -63,17 +58,8 @@ class LXHardwareSerial : public HardwareSerial {
 };
 
 void uartWaitFIFOEmpty(uart_t* uart);
-void uartWaitRxFIFOEmpty(uart_t* uart);
-void uartWaitTXDone(uart_t* uart);
-void uartWaitTXBrkDone(uart_t* uart);
-void uartConfigureRS485(uart_t* uart, uint8_t en);
-void uartConfigureSendBreak(uart_t* uart, uint8_t en, uint8_t len, uint16_t idle);
-void uartSetToTwoStopBits(uart_t* uart);
-void uartEnableBreakDetect(uart_t* uart);
-void uartDisableBreakDetect(uart_t* uart);
 void uartDisableInterrupts(uart_t* uart);
 void uartSetInterrupts(uart_t* uart, uint32_t value);
-void uartClearInterrupts(uart_t* uart);
 
 uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8_t rxPin, int8_t txPin, uint16_t queueLen, bool inverted, uint8_t rxfifo_full_thrhd, int qSize, QueueHandle_t* q);
 

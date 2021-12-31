@@ -148,6 +148,8 @@ void IRAM_ATTR hardwareSerialDelayMicroseconds(uint32_t us) {
 #endif
 #endif
 
+#define UART_INTR_TX_DONE (0x1<<14)
+#define UART_INTR_BRK_DET (0x1<<7)
 
 // wait for FIFO to be empty
 void IRAM_ATTR uartWaitFIFOEmpty(uart_t* uart) {
@@ -157,109 +159,27 @@ void IRAM_ATTR uartWaitFIFOEmpty(uart_t* uart) {
 	uart_wait_tx_done(uart->num, 20000);
 }
 
-void IRAM_ATTR uartWaitRxFIFOEmpty(uart_t* uart) {
-	if ( uart == NULL ) {
-		return;
-	}
-	
-	uint16_t timeout = 0;
-    while(uart->dev->status.rxfifo_cnt != 0x00) {
-        timeout++;
-        if ( timeout > 20000 ) {
-        	break;
-        }
-        hardwareSerialDelayMicroseconds(10);
-    }
-}
-
 void IRAM_ATTR uartWaitTXDone(uart_t* uart) {
 	if ( uart == NULL ) {
 		return;
 	}
     
-    uint16_t timeout = 0;
-    while (uart->dev->int_raw.tx_done == 0) {
-        timeout++;
-        if ( timeout > 20000 ) {
-        	break;
-        }
-        hardwareSerialDelayMicroseconds(10);
-	}
-	uart->dev->int_clr.tx_done = 1;
-}
-
-void IRAM_ATTR uartWaitTXBrkDone(uart_t* uart) {
-	if ( uart == NULL ) {
-		return;
-	}
-    
-    while (uart->dev->int_raw.tx_brk_idle_done == 0) {
-        hardwareSerialDelayMicroseconds(10);
-	}
-	
-	uart->dev->int_clr.tx_brk_idle_done = 1;
-}
-
-void uartConfigureRS485(uart_t* uart, uint8_t en) {
-	UART_MUTEX_LOCK();
-	uart->dev->rs485_conf.en = en;
-	UART_MUTEX_UNLOCK();
-}
-
-void uartConfigureSendBreak(uart_t* uart, uint8_t en, uint8_t len, uint16_t idle) {
-	UART_MUTEX_LOCK();
-	uart->dev->conf0.txd_brk = en;
-	uart->dev->idle_conf.tx_brk_num=len;
-	uart->dev->idle_conf.tx_idle_num = idle;
-	UART_MUTEX_UNLOCK();
-}
-
-// ****************************************************
-//			uartConfigureTwoStopBits
-//          known issue with two stop bits now handled in IDF and Arduino Core
-//          see
-//				https://github.com/espressif/esp-idf/blob/master/components/driver/uart.c
-//				uart_set_stop_bits(), lines 118-127
-//          see also
-//				https://esp32.com/viewtopic.php?f=2&t=1431
-
-void uartSetToTwoStopBits(uart_t* uart) {
-	uart_set_stop_bits(uart->num, 2);
-}
-
-void uartEnableBreakDetect(uart_t* uart) {
-	UART_MUTEX_LOCK();
-	
-	uart->dev->int_ena.brk_det = 1;
-    uart->dev->conf1.rxfifo_full_thrhd = 1;
-    uart->dev->auto_baud.val = 0;
-    UART_MUTEX_UNLOCK();
-}
-
-void uartDisableBreakDetect(uart_t* uart) {
-	UART_MUTEX_LOCK();
-	uart->dev->int_ena.brk_det = 0;
-    UART_MUTEX_UNLOCK();
+   uart_wait_tx_done(uart->num, 20000);
+   uart_clear_intr_status(uart->num, UART_INTR_TX_DONE);
+   //uart->dev->int_clr.tx_done = 1;
 }
 
 void uartDisableInterrupts(uart_t* uart) {
     UART_MUTEX_LOCK();
-    //uart->dev->conf1.val = 0;
-    uart->dev->int_ena.val = 0;
-    uart->dev->int_clr.val = 0xffffffff;
+    uart_disable_intr_mask(uart->num, 0xffffffff);
+    uart_clear_intr_status(uart->num, 0xffffffff);
     UART_MUTEX_UNLOCK();
 }
 
 void uartSetInterrupts(uart_t* uart, uint32_t value) {
 	UART_MUTEX_LOCK();
-	uart->dev->int_ena.val = value;
+	uart_enable_intr_mask(uart->num, value);
 	UART_MUTEX_UNLOCK();
-}
-
-void uartClearInterrupts(uart_t* uart) {
-    UART_MUTEX_LOCK();
-    uart->dev->int_clr.val = 0xffffffff;
-    UART_MUTEX_UNLOCK();
 }
 
 void uartLockMUTEX(uart_t* uart) {
@@ -379,16 +299,8 @@ void LXHardwareSerial::waitFIFOEmpty() {
 	uartWaitFIFOEmpty(_uart);
 }
 
-void LXHardwareSerial::waitRxFIFOEmpty() {
-	uartWaitRxFIFOEmpty(_uart);
-}
-
 void LXHardwareSerial::waitTXDone() {
 	uartWaitTXDone(_uart);
-}
-
-void LXHardwareSerial::waitTXBrkDone() {
-	uartWaitTXBrkDone(_uart);
 }
 
 void LXHardwareSerial::sendBreak(uint32_t length) {
@@ -424,27 +336,20 @@ void LXHardwareSerial::setBaudRate(uint32_t rate) {
 	uartSetBaudRate(_uart, rate);
 }
 
-void LXHardwareSerial::configureRS485(uint8_t en) {
-	uartConfigureRS485(_uart, en);
-}
-
-void LXHardwareSerial::configureSendBreak(uint8_t en, uint8_t len, uint16_t idle) {
-	uartConfigureSendBreak(_uart, en, len, idle);
-}
-
 void LXHardwareSerial::setToTwoStopBits() {
-	uartSetToTwoStopBits(_uart);
+	uart_set_stop_bits(_uart->num, 2);
 }
 
 void LXHardwareSerial::enableBreakDetect() {
-	uartEnableBreakDetect(_uart);
+	uart_enable_intr_mask(_uart->num, UART_INTR_BRK_DET);
 }
 
 void LXHardwareSerial::disableBreakDetect() {
-	uartDisableBreakDetect(_uart);
+	uart_disable_intr_mask(_uart->num, UART_INTR_BRK_DET);
 }
 
 void LXHardwareSerial::clearInterrupts() {
+	uart_clear_intr_status(_uart->num, 0xffffffff);
 	uartClearInterrupts(_uart);
 }
 

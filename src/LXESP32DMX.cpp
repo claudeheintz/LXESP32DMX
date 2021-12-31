@@ -216,8 +216,6 @@ void LX32DMX::startOutput ( uint8_t pin, UBaseType_t priorityOverIdle ) {
 	}
 	
 	LXSerial2.begin(250000, SERIAL_8N2, NO_PIN, pin);
-
-	//LXSerial2.configureRS485(1);
 	
 	_continue_task = 1;					// flag for task loop
 	BaseType_t xReturned;
