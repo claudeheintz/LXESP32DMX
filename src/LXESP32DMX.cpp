@@ -44,14 +44,15 @@ static void sendDMX( void * param ) {
   
   while ( ESP32DMX.continueTask() ) {
 
+	// ********** alt?
 	//does not return until after break when tx_fifo_size == 0 see HardwareSerial begin()/instaLL_Driver
-	LXSerial2.writeBytesWithBreak(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
+	//LXSerial2.writeBytesWithBreak(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
 	
 	
 	// minimum MAB 12µs
 	//hardwareSerialDelayMicroseconds(24);
-	
-	/*	
+	// ********** end alt?
+		
   
     LXSerial2.sendBreak(150);
     hardwareSerialDelayMicroseconds(12);
@@ -61,12 +62,12 @@ static void sendDMX( void * param ) {
     xSemaphoreGive( ESP32DMX.lxDataLock );
     								//vTaskDelay must be called to avoid wdt and lock up issues
     					//use time while UART finishes sending to allow other tasks to run
-    //LXSerial2.waitFIFOEmpty();		//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
+    LXSerial2.waitFIFOEmpty();		//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
     LXSerial2.waitTXDone();
     				  		// break at end is actually for next packet...
     ESP32DMX.setDMXPacketSent(1);
     vTaskDelay(5);
-    */
+    
   }
   
   // signal task end and wait for task to be deleted

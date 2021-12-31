@@ -149,15 +149,38 @@ void IRAM_ATTR hardwareSerialDelayMicroseconds(uint32_t us) {
 #endif
 #endif
 
+// from uart_ll.h
+
 #define UART_INTR_TX_DONE (0x1<<14)
 #define UART_INTR_BRK_DET (0x1<<7)
+
+
+// see macro UART_LL_GET_HW in uart_ll.h
+uart_dev_t* get_uart_hardware(uart_t* uart) {
+	if ( uart->num == 2 ) {
+		return &UART2;
+	}
+	if ( uart->num == 1 ) {
+		return &UART1;
+	}
+	return &UART0;
+}
+
 
 // wait for FIFO to be empty
 void IRAM_ATTR uartWaitFIFOEmpty(uart_t* uart) {
 	if ( uart == NULL ) {
 		return;
 	}
-	uart_dev_t *hw = UART_LL_GET_HW(uart->num);
+	uart_dev_t *hw = get_uart_hardware(uart);
+	uint16_t timeout = 0;
+    while(hw->status.txfifo_cnt != 0x00) {
+        timeout++;
+        if ( timeout > 20000 ) {
+        	break;
+        }
+        hardwareSerialDelayMicroseconds(10);
+    }
 	uart_wait_tx_done(uart->num, portMAX_DELAY);
 }
 
