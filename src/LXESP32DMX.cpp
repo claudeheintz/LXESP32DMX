@@ -44,16 +44,16 @@ static void sendDMX( void * param ) {
   
   while ( ESP32DMX.continueTask() ) {
 
+#define ALT_DMX_SEND 0
+#if ALT_DMX_SEND == 1
 	// ********** alt?
 	//does not return until after break when tx_fifo_size == 0 see HardwareSerial begin()/instaLL_Driver
-	//LXSerial2.writeBytesWithBreak(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
-	
+	LXSerial2.writeBytesWithBreak(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
 	
 	// minimum MAB 12µs
-	//hardwareSerialDelayMicroseconds(24);
+	hardwareSerialDelayMicroseconds(24);
 	// ********** end alt?
-		
-  
+#else	
     LXSerial2.sendBreak(150);
     hardwareSerialDelayMicroseconds(12);
     
@@ -66,7 +66,7 @@ static void sendDMX( void * param ) {
     LXSerial2.waitTXDone();
     				  		// break at end is actually for next packet...
     ESP32DMX.setDMXPacketSent(1);
-
+#endif
     
   }
   
