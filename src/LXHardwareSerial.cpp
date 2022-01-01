@@ -36,7 +36,6 @@ struct uart_struct_t {
 #else
 #define UART_MUTEX_LOCK()    do {} while (xSemaphoreTake(uart->lock, portMAX_DELAY) != pdPASS)
 #define UART_MUTEX_UNLOCK()  xSemaphoreGive(uart->lock)
-#warning CONFIG_DISABLE_HAL_LOCKS is false...
 #endif
 
 
@@ -366,9 +365,7 @@ void LXHardwareSerial::sendBreak(uint32_t length) {
 void LXHardwareSerial::writeBytesWithBreak(const void* src, size_t size) {
 	//  //int uart_write_bytes_with_break(uart_port_t uart_num, const void* src, size_t size, int brk_len);
 	//bit period 4μs break 176μs typical break = 44 bit periods for break
-    int check = uart_write_bytes_with_break(_uart->num, src, size, 44);	
-    Serial.print("     . ");
-	Serial.println(check);	
+    uart_write_bytes_with_break(_uart->num, src, size, 44);	
 }
 
 void LXHardwareSerial::setBaudRate(uint32_t rate) {

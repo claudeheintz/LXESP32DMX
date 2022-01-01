@@ -61,12 +61,12 @@ static void sendDMX( void * param ) {
     LXSerial2.write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
     xSemaphoreGive( ESP32DMX.lxDataLock );
     								//vTaskDelay must be called to avoid wdt and lock up issues
-    					//use time while UART finishes sending to allow other tasks to run
+    vTaskDelay(5);					//use time while UART finishes sending to allow other tasks to run
     LXSerial2.waitFIFOEmpty();		//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
     LXSerial2.waitTXDone();
     				  		// break at end is actually for next packet...
     ESP32DMX.setDMXPacketSent(1);
-    vTaskDelay(5);
+
     
   }
   
@@ -256,10 +256,7 @@ void LX32DMX::startInput ( uint8_t pin , UBaseType_t priorityOverIdle) {
 	
 	
 	LXSerial2.begin(250000, SERIAL_8N2, pin, NO_PIN, false, 20000UL, 64, 128, &uart_queue);
-	Serial.println("did begin uart");
 	LXSerial2.enableBreakDetect();
-	
-	Serial.println("will make task");
 	
 	_continue_task = 1;					// flag for task loop
 	BaseType_t xReturned;
