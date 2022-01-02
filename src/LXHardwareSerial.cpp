@@ -3,13 +3,14 @@
     @file     LXHardwareSerial.cpp
     @author   Claude Heintz
     @license  BSD (see LXESP32DMX.h)
-    @copyright 2017 by Claude Heintz
+    @copyright 2017-2022 by Claude Heintz
 
     Exposes functionality in HardwareSerial class for LXESP32DMX driver
 
     @section  HISTORY
 
     v1.0 - First release
+    v2.x - rewrite for ESP32 SDK 2.0.2
 */
 /**************************************************************************/
 

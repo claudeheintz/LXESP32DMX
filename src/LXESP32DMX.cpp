@@ -3,7 +3,7 @@
     @file     LXESP32DMX.cpp
     @author   Claude Heintz
     @license  BSD (see LXESP32DMX.h)
-    @copyright 2017 by Claude Heintz
+    @copyright 2017-2022 by Claude Heintz
 
     DMX Driver for ESP32
 
@@ -11,6 +11,7 @@
 
     v1.0 - First release
     v1.2 - improve multi-task compatibility
+    v2.x - rewrite for ESP32 SDK 2.0.2
 */
 /**************************************************************************/
 

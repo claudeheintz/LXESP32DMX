@@ -1,7 +1,7 @@
 /* LXESP32DMX.h
-   Copyright 2017 by Claude Heintz Design
+   Copyright 2017-2022 by Claude Heintz Design
 
-Copyright (c) 2017, Claude Heintz
+Copyright (c) 2017-2022, Claude Heintz
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -47,6 +47,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    v1.0	- first release
    v1.1 - simplifies modifications to esp32-hal-uart.c required for DMX input
    v1.2 - improve multi-task compatibility
+   v2.x - rewrite for ESP32 SDK 2.0.2
    
  */
 
