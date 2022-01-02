@@ -398,6 +398,10 @@ void LXHardwareSerial::clearFIFOOverflow() {
 	uart_clear_intr_status(_uart->num, UART_INTR_RXFIFO_OVF);
 }
 
+void LXHardwareSerial::flushInput() {
+	uart_flush_input(_uart->num);
+}
+
 void LXHardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, int8_t txPin, bool invert, unsigned long timeout_ms, uint8_t rxfifo_full_thrhd, int qSize, QueueHandle_t* q) {
 	_tx_gpio_pin = txPin;
 	_rx_gpio_pin = rxPin;

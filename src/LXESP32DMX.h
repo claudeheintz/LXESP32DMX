@@ -301,6 +301,11 @@ class LX32DMX {
 	*/
    void handleQueuePacketComplete( void );
    
+   /*!
+	* @brief reset _current_slot
+	*/
+   void handleResetQueuePacket( void );
+   
    
    /*!
 	* @brief calls dmx data received callback

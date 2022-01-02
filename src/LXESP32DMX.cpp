@@ -26,7 +26,6 @@ LX32DMX ESP32DMX;
 
 UID LX32DMX::THIS_DEVICE_ID(0x6C, 0x78, 0x00, 0x00, 0x02, 0x01);
 
-#define RD_BUF_SIZE 513
 static QueueHandle_t uart_queue;
 
 
@@ -37,8 +36,7 @@ static QueueHandle_t uart_queue;
  * sendDMX is run by an task with idle priority
  * loops forever until task is ended
  */
-static void sendDMX( void * param ) {
-  //LX32DMX* dmxptr = (LX32DMX*) param;
+static void send_dmx_task( void * param ) {
   
   ESP32DMX.setActiveTask(1);
   
@@ -165,15 +163,14 @@ static void rdmTask( void * param ) {
 static void read_queue_task(void *param) {
     uart_event_t event;
     size_t buffered_size;
-    uint8_t* dtmp = (uint8_t*) malloc(RD_BUF_SIZE);
+    uint8_t* dtmp = (uint8_t*) malloc(DMX_MAX_FRAME);	//probably can get away with 120 bytes since that seems to be event.size
     bool initial_break = false;
     int rx;
-    Serial.println("beginning read queue task");
+    ESP32DMX.setActiveTask(1);
     
     while ( ESP32DMX.continueTask() ) {
         //Waiting for UART event.
         if ( xQueueReceive(uart_queue, (void * )&event, (portTickType)portMAX_DELAY) ) {
-            bzero(dtmp, RD_BUF_SIZE);
             switch(event.type) {
             	case UART_DATA:
             		if ( initial_break ) {
@@ -182,14 +179,13 @@ static void read_queue_task(void *param) {
 							ESP32DMX.handleQueuePacketComplete();
 						}
             		} else {
-            			rx = LXSerial2.readBytes(dtmp, event.size, portMAX_DELAY);	//drain fifo
+            			rx = LXSerial2.readBytes(dtmp, event.size, portMAX_DELAY);	//drain fifo (result is ignored)
             		}
             		break;
             	case UART_BREAK:
-            		//Serial.println("|------|");
             		rx = ESP32DMX.handleQueueBreak();	//read remaining slots up to MAX_FRAME
             		
-            		uart_flush_input(2);
+            		LXSerial2.flushInput();
                     xQueueReset(uart_queue);
                     
                     //wait until after fifo reset to process completed packet
@@ -200,16 +196,17 @@ static void read_queue_task(void *param) {
                     } else {
                     	initial_break = true;
 					}
+					ESP32DMX.handleResetQueuePacket();
             		break;
             	case UART_FIFO_OVF:
             		LXSerial2.clearFIFOOverflow();
-            		uart_flush_input(2);
+            		LXSerial2.flushInput();
                     xQueueReset(uart_queue);
             		Serial.println("fifo over");
             		initial_break = false;
             		break;
             	default:					// error?
-            		uart_flush_input(2);
+            		LXSerial2.flushInput();
                     xQueueReset(uart_queue);
             		Serial.print("other event ");
             		Serial.println(event.type);
@@ -222,6 +219,7 @@ static void read_queue_task(void *param) {
 	
 	// signal task end and wait for task to be deleted
 	ESP32DMX.setActiveTask(0);
+	free(dtmp);
   
 	vTaskDelete( NULL );	// delete this task
 }
@@ -291,8 +289,8 @@ void LX32DMX::startOutput ( uint8_t pin, UBaseType_t priorityOverIdle ) {
 	_continue_task = 1;					// flag for task loop
 	BaseType_t xReturned;
   	xReturned = xTaskCreate(
-                    sendDMX,            /* Function that implements the task. */
-                    "DMX-Out",              /* Text name for the task. */
+                    send_dmx_task,      /* Function that implements the task. */
+                    "DMX-Out",          /* Text name for the task. */
                     8192,               /* Stack size in words, not bytes. */
                     this,               /* Parameter passed into the task. */
                     tskIDLE_PRIORITY+priorityOverIdle,   /* Priority at which the task is created. */
@@ -577,6 +575,10 @@ void LX32DMX::handleQueuePacketComplete( void ) {
 			setReceiveTaskStatus(2);
 		}
 	}
+	_current_slot = 0;
+}
+
+void LX32DMX::handleResetQueuePacket( void ) {
 	_current_slot = 0;
 }
 
