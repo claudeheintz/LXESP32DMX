@@ -167,6 +167,8 @@ static void read_queue_task(void *param) {
     size_t buffered_size;
     uint8_t* dtmp = (uint8_t*) malloc(RD_BUF_SIZE);
     bool initial_break = false;
+    int rx;
+    Serial.println("beginning read queue task");
     
     while ( ESP32DMX.continueTask() ) {
         //Waiting for UART event.
@@ -174,15 +176,45 @@ static void read_queue_task(void *param) {
             bzero(dtmp, RD_BUF_SIZE);
             switch(event.type) {
             	case UART_DATA:
-            		
             		if ( initial_break ) {
-            		
+            			rx = ESP32DMX.handleQueueData(event.size);
+            			if ( rx >= DMX_MAX_SLOTS ) {
+							ESP32DMX.handleQueuePacketComplete();
+						}
+            		} else {
+            			rx = LXSerial2.readBytes(dtmp, event.size, portMAX_DELAY);	//drain fifo
             		}
+            		break;
             	case UART_BREAK:
-            		initial_break = true;
-            		Serial.println("_");
-            	default:					// error?
+            		//Serial.println("|------|");
+            		rx = ESP32DMX.handleQueueBreak();	//read remaining slots up to MAX_FRAME
+            		
+            		uart_flush_input(2);
+                    xQueueReset(uart_queue);
+                    
+                    //wait until after fifo reset to process completed packet
+                    if ( initial_break ) {
+                    	if ( rx > 0 ) {
+                    		ESP32DMX.handleQueuePacketComplete();
+						}
+                    } else {
+                    	initial_break = true;
+					}
+            		break;
+            	case UART_FIFO_OVF:
+            		LXSerial2.clearFIFOOverflow();
+            		uart_flush_input(2);
+                    xQueueReset(uart_queue);
+            		Serial.println("fifo over");
             		initial_break = false;
+            		break;
+            	default:					// error?
+            		uart_flush_input(2);
+                    xQueueReset(uart_queue);
+            		Serial.print("other event ");
+            		Serial.println(event.type);
+            		initial_break = false;
+            		
             
             }	// switch
         }		// x q recv
@@ -190,6 +222,30 @@ static void read_queue_task(void *param) {
 	
 	// signal task end and wait for task to be deleted
 	ESP32DMX.setActiveTask(0);
+  
+	vTaskDelete( NULL );	// delete this task
+}
+
+static void received_queue_task(void *param) {
+
+	Serial.println("beginning received_queue_task");
+
+	 while ( ESP32DMX.continueTask() ) {
+	 
+	 	switch ( ESP32DMX.receiveTaskStatus() ) {
+	 		case 1:
+	 			ESP32DMX.handleQueueDMXDataReceived();
+	 			ESP32DMX.setReceiveTaskStatus(0);
+	 			break;
+	 		default:
+	 			vTaskDelay(10);
+	 	}
+	 
+	 }
+	
+	Serial.println("ending other task");
+
+	ESP32DMX.setReceiveTaskActive(0);
   
 	vTaskDelete( NULL );	// delete this task
 }
@@ -202,10 +258,13 @@ LX32DMX::LX32DMX ( void ) {
 	_direction_pin = DIRECTION_PIN_NOT_USED;	//optional
 	_slots = DMX_MAX_SLOTS;
 	_xHandle = NULL;
+	_xRecvHandle = NULL;
 	_receive_callback = NULL;
 	_rdm_receive_callback = NULL;
 	clearSlots();
 	_task_active = 0;
+	_received_task_active = 0;
+	_received_task_status = 0;
 	_continue_task = 0;
 	_rdm_task_mode = 0;
 }
@@ -255,13 +314,13 @@ void LX32DMX::startInput ( uint8_t pin , UBaseType_t priorityOverIdle) {
 	}
 	
 	
-	LXSerial2.begin(250000, SERIAL_8N2, pin, NO_PIN, false, 20000UL, 64, 128, &uart_queue);
+	LXSerial2.begin(250000, SERIAL_8N2, pin, NO_PIN, false, 20000UL, 64, 513, &uart_queue);
 	LXSerial2.enableBreakDetect();
 	
 	_continue_task = 1;					// flag for task loop
 	BaseType_t xReturned;
   	xReturned = xTaskCreate(
-                    receiveDMX,         /* Function that implements the task. */
+                    read_queue_task,         /* Function that implements the task. */
                     "DMX-In",              /* Text name for the task. */
                     8192,               /* Stack size in words, not bytes. */
                     this,               /* Parameter passed into the task. */
@@ -275,6 +334,24 @@ void LX32DMX::startInput ( uint8_t pin , UBaseType_t priorityOverIdle) {
     if( xReturned != pdPASS ) {
         _xHandle = NULL;
     }
+    
+    xReturned = xTaskCreate(
+                    received_queue_task,         /* Function that implements the task. */
+                    "Input",              /* Text name for the task. */
+                    8192,               /* Stack size in words, not bytes. */
+                    this,               /* Parameter passed into the task. */
+                    tskIDLE_PRIORITY,   /* Priority at which the task is created. */
+                    &_xRecvHandle );
+                    
+	Serial.println("did make task");
+                    
+	// NOTE read_queue_task replaces receiveDMX for SDK 2.0.2 when finished
+            
+    if( xReturned != pdPASS ) {
+        _xRecvHandle = NULL;
+    }
+    
+    
     _rdm_task_mode = 0;
     
     resetFrame();
@@ -320,11 +397,16 @@ void LX32DMX::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t 
 void LX32DMX::stop ( void ) {
 	_continue_task = 0;
 	
+	while ( _received_task_active ) {
+		vTaskDelay(1);
+	}
+	
 	while ( _task_active ) {
 		vTaskDelay(1);
 	}
 	
 	_xHandle = NULL;	// task is deleted when while(_continue_task){...} ends
+	_xRecvHandle = NULL;
 	LXSerial2.end();
 }
 
@@ -379,6 +461,18 @@ uint8_t LX32DMX::continueTask() {
 
 void LX32DMX::setActiveTask(uint8_t s) {
 	_task_active = s;
+}
+
+void LX32DMX::setReceiveTaskActive(uint8_t s) {
+	_received_task_active = s;
+}
+
+int LX32DMX::receiveTaskStatus( void ) {
+	return _received_task_status;
+}
+
+void LX32DMX::setReceiveTaskStatus(uint8_t s) {
+	_received_task_status = s;
 }
 
 void LX32DMX::packetComplete( void ) {
@@ -446,6 +540,50 @@ void LX32DMX::addReceivedByte(uint8_t value) {
 	_current_slot++;
 	if ( _current_slot >= _packet_length ) {		//reached expected end of packet
 		packetComplete();
+	}
+}
+
+int LX32DMX::handleQueueData(int esize) {
+	if ( (_current_slot + esize) > DMX_MAX_FRAME ) {
+		esize = DMX_MAX_FRAME - _current_slot;
+	}
+	if ( esize > 0 ) {
+		int rbytes = LXSerial2.readBytes(&_receivedData[_current_slot], esize, portMAX_DELAY);
+		_current_slot += rbytes;
+	}
+	return _current_slot;
+}
+
+int LX32DMX::handleQueueBreak( void ) {
+	// read out remaining bytes up tp DMX_MAX_FRAME
+	int rbytes = LXSerial2.available();
+	if ( rbytes ) {
+		handleQueueData(rbytes);
+	}
+	return _current_slot;
+}
+
+void LX32DMX::handleQueuePacketComplete( void ) {
+	if ( _receivedData[0] == 0 ) {
+		memcpy(_dmxData, _receivedData, DMX_MAX_FRAME);
+		_slots = _current_slot;
+		setReceiveTaskStatus(1);
+	} else if ( _receivedData[0] == RDM_START_CODE ) {
+		if ( validateRDMPacket(_receivedData) ) {
+			uint8_t plen = _receivedData[2] + 2;
+			for(int j=0; j<plen; j++) {
+				_rdmData[j] = _receivedData[j];
+			}
+			setReceiveTaskStatus(2);
+		}
+	}
+	_current_slot = 0;
+}
+
+
+void LX32DMX::handleQueueDMXDataReceived( void ) {
+	if ( _receive_callback != NULL ) {
+		_receive_callback(_slots);
 	}
 }
 

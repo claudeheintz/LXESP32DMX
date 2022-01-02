@@ -251,6 +251,23 @@ class LX32DMX {
    */
 	void setActiveTask(uint8_t s);
 	
+	/*!
+    * @brief set a flag indicating that receive task is looping
+   */
+	void setReceiveTaskActive(uint8_t s);
+	
+	
+	/*!
+    * @brief set a flag indicating if data has beed received and what type
+   */
+   
+	int receiveTaskStatus( void );
+	
+	/*!
+    * @brief set a flag indicating status of data being received
+   */
+	void setReceiveTaskStatus(uint8_t s);
+	
    /*!
     * @brief dmx frame received, call DataReceivedCallback function, if set.
    */
@@ -266,6 +283,29 @@ class LX32DMX {
 	 * @param value level (0-255)
 	 */
    void addReceivedByte(uint8_t value);
+   
+   /*!
+	* @brief handle data event
+	* @param event size or available
+	*/
+   int handleQueueData(int esize);
+   
+   /*!
+	* @brief handle break event
+	* returns current_slot for call to handleQueuePacketComplete
+	*/
+   int handleQueueBreak( void );
+   
+   /*!
+	* @brief copies data and sets flag for receive task
+	*/
+   void handleQueuePacketComplete( void );
+   
+   
+   /*!
+	* @brief calls dmx data received callback
+	*/
+   void handleQueueDMXDataReceived( void );
    
    /*!
     * @brief called from read task with next character from serial
@@ -490,6 +530,16 @@ class LX32DMX {
   	uint8_t  _task_active;
   	
   	/*!
+   * @brief flag indication receive task loop has started
+   */
+  	uint8_t  _received_task_active;
+  	
+  	/*!
+   * @brief flag indicating data received
+   */
+  	uint8_t  _received_task_status;
+  	
+  	/*!
    * @brief flag indicating RDM task should send dmx slots
    */
   	uint8_t  _rdm_task_mode;
@@ -554,6 +604,7 @@ class LX32DMX {
     * @brief send/receive task
     */
   	TaskHandle_t _xHandle;
+  	TaskHandle_t _xRecvHandle;
   	
   	/*!
     * @brief Pointer to receive callback function

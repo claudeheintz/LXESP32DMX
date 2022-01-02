@@ -152,7 +152,7 @@ void IRAM_ATTR hardwareSerialDelayMicroseconds(uint32_t us) {
 
 #define UART_INTR_TX_DONE (0x1<<14)
 #define UART_INTR_BRK_DET (0x1<<7)
-
+#define UART_INTR_RXFIFO_OVF (0x1<<4)
 
 // see macro UART_LL_GET_HW in uart_ll.h
 uart_dev_t* get_uart_hardware(uart_t* uart) {
@@ -231,7 +231,7 @@ uint32_t _get_effective_baudrate(uint32_t baudrate)
  * is local to esp32-hal-uart.c
  * Also, qSize and q are passed to uart_driver_install
  */
-uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8_t rxPin, int8_t txPin, uint16_t queueLen, bool inverted, uint8_t rxfifo_full_thrhd, int qSize, QueueHandle_t* q)
+uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8_t rxPin, int8_t txPin, uint16_t rx_buf_sz, bool inverted, uint8_t rxfifo_full_thrhd, int qSize, QueueHandle_t* q)
 {
     if(uart_nr >= SOC_UART_NUM) {
         return NULL;
@@ -246,11 +246,12 @@ uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8
 	 * to access _uart_bus_array which is static in esp32-hal-uart.c
 	 * the struct is not destroyed with uartEnd(uart)
 	 */
-    uart_t* uart = uartBegin(uart_nr, baudrate, config, rxPin, txPin, queueLen, inverted, rxfifo_full_thrhd);
+    uart_t* uart = uartBegin(uart_nr, baudrate, config, rxPin, txPin, rx_buf_sz, inverted, rxfifo_full_thrhd);
     
     /* continue with copy of regular uartBegin() until uart_driver_install */
 
-    if (uart_is_driver_installed(uart_nr)) {	
+    if (uart_is_driver_installed(uart_nr)) {
+    Serial.println("OK I'm ending uart");
         uartEnd(uart);   //we just installed a driver and now we will uninstall it
     }
 
@@ -289,7 +290,7 @@ uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8
       or, with send writeBytesWithBreak does not return until after the break has been sent
 */
 
-    ESP_ERROR_CHECK(uart_driver_install(uart_nr, 2*queueLen, 0, qSize, q, 0));
+    ESP_ERROR_CHECK(uart_driver_install(uart_nr, rx_buf_sz, 0, qSize, q, 0));
     
 /****** continue with regular uartBegin() ******/
     
@@ -368,6 +369,11 @@ void LXHardwareSerial::writeBytesWithBreak(const void* src, size_t size) {
     uart_write_bytes_with_break(_uart->num, src, size, 44);	
 }
 
+int LXHardwareSerial::readBytes(void* buf, uint32_t length, TickType_t ticks_to_wait) {
+	int r = uart_read_bytes(_uart->num, buf, length, ticks_to_wait);
+	return r;
+}
+
 void LXHardwareSerial::setBaudRate(uint32_t rate) {
 	uartSetBaudRate(_uart, rate);
 }
@@ -376,7 +382,7 @@ void LXHardwareSerial::setToTwoStopBits() {
 	uart_set_stop_bits(_uart->num, UART_STOP_BITS_2);
 }
 
-void LXHardwareSerial::enableBreakDetect() {
+void LXHardwareSerial::enableBreakDetect(void) {
 	uart_enable_intr_mask(_uart->num, UART_INTR_BRK_DET);
 }
 
@@ -386,6 +392,10 @@ void LXHardwareSerial::disableBreakDetect() {
 
 void LXHardwareSerial::clearInterrupts() {
 	uart_clear_intr_status(_uart->num, 0xffffffff);
+}
+
+void LXHardwareSerial::clearFIFOOverflow() {
+	uart_clear_intr_status(_uart->num, UART_INTR_RXFIFO_OVF);
 }
 
 void LXHardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, int8_t txPin, bool invert, unsigned long timeout_ms, uint8_t rxfifo_full_thrhd, int qSize, QueueHandle_t* q) {
@@ -423,7 +433,7 @@ void LXHardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, 
         txPin = TX2;
     }
 #endif
-
+	setRxBufferSize(1024);
     _uart = uartQueueBegin(_uart_nr, baud ? baud : 9600, config, rxPin, txPin, _rxBufferSize, invert, rxfifo_full_thrhd, qSize, q);
     
     //NOTE does not detect Baud like HardwareSerial.begin()

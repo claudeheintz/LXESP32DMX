@@ -114,7 +114,7 @@ void setup() {
   setupPWMChannel(led_pinC, led_channelC);
 
   Serial.print(", set callback");
-  //ESP32DMX.setDataReceivedCallback(receiveCallback);
+  ESP32DMX.setDataReceivedCallback(receiveCallback);
 
   Serial.print(", start dmx input");
   ESP32DMX.startInput(DMX_SERIAL_INPUT_PIN);
