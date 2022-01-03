@@ -84,14 +84,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define RDM_NO_DISCOVERY		0
 #define RDM_PARTIAL_DISCOVERY	1
 #define RDM_DID_DISCOVER		2
+
+#define RECEIVE_STATUS_NONE 0
+#define RECEIVE_STATUS_DMX  1
+#define RECEIVE_STATUS_RDM  2
+
+#define TASK_IS_INACTIVE 0
+#define TASK_IS_ACTIVE   1
     
 typedef void (*LXRecvCallback)(int);
-
-//Special Byte Definitions for SLIP Encoding
-#define SLIP_END      0xC0
-#define SLIP_ESC      0xDB
-#define SLIP_ESC_ESC  0xDC
-#define SLIP_ESC_END  0xDD
 
 /*!   
 @class LX32DMX
@@ -253,9 +254,9 @@ class LX32DMX {
 	void setActiveTask(uint8_t s);
 	
 	/*!
-    * @brief set a flag indicating that receive task is looping
+    * @brief set a flag indicating that input received task is looping
    */
-	void setReceiveTaskActive(uint8_t s);
+	void setInputReceivedTaskActive(uint8_t s);
 	
 	
 	/*!
@@ -267,7 +268,7 @@ class LX32DMX {
 	/*!
     * @brief set a flag indicating status of data being received
    */
-	void setReceiveTaskStatus(uint8_t s);
+	void setInputReceivedTaskStatus(uint8_t s);
 	
    /*!
     * @brief dmx frame received, call DataReceivedCallback function, if set.
@@ -314,9 +315,10 @@ class LX32DMX {
    void handleQueueDMXDataReceived( void );
    
    /*!
-    * @brief called from read task with next character from serial
-   */
-   void byteReceived(uint8_t c);
+	* @brief calls rdm data received callback
+	*/
+   void handleQueueRDMDataReceived( void );
+   
    
    /*!
     * @brief utility that prints receive buffer to Serial

@@ -68,6 +68,7 @@ extern "C" {
 // start codes
 #define RDM_START_CODE			0xCC
 #define RDM_SUB_START_CODE		0x01
+#define RDM_DISCOVERY_SUB_CODE	0xFE
 
 // command classes
 #define RDM_DISCOVERY_COMMAND		0x10
