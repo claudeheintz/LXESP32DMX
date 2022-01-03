@@ -287,7 +287,7 @@ static void rdm_queue_task(void *param) {
 /*
  * rdmTask is run by an task with idle priority
  * loops forever until task is ended
- */
+ 
 static void rdmTask( void * param ) {
 
   uint8_t task_mode;
@@ -346,7 +346,7 @@ static void rdmTask( void * param ) {
   
   vTaskDelete( NULL );	// delete this task
 }
-
+*/
 
 
 /*******************************************************************************

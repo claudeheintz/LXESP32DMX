@@ -10,6 +10,7 @@
     
     @section  HISTORY
     v1.00 - First release  
+    v2.00 - Updated for SDK 2.0.2
 */
 /**************************************************************************/
 #include <LXESP32DMX.h>
@@ -17,9 +18,9 @@
 #include <UID.h>
 #include "freertos/task.h"
 
-#define DMX_DIRECTION_PIN 21
-#define DMX_SERIAL_INPUT_PIN 16
-#define DMX_SERIAL_OUTPUT_PIN 17
+#define DMX_DIRECTION_PIN     EXAMPLE_CIRCUIT_DIRECTION_PIN
+#define DMX_SERIAL_INPUT_PIN  EXAMPLE_CIRCUIT_INPUT_PIN
+#define DMX_SERIAL_OUTPUT_PIN EXAMPLE_CIRCUIT_OUTPUT_PIN
 #define LED_PIN 19
 
 int got_dmx = 0;
@@ -29,7 +30,7 @@ uint16_t start_address = 1;
 
 
 
-#define DEFAULT_DEVICE_LABEL  "RDM dev test v1.0"
+#define DEFAULT_DEVICE_LABEL  "RDM dev test v2.0"
 #define MFG_LABEL             "LXDMX"
 #define MODEL_DESCRIPTION     "RDMDeviceTest"
 #define DEVICE_LABEL_MAX_LEN 33
