@@ -23,8 +23,8 @@
 #include <LXESP32DMX.h>
 #include "esp_task_wdt.h"
 
-#define DMX_DIRECTION_PIN 21
-#define DMX_SERIAL_INPUT_PIN 16
+#define DMX_DIRECTION_PIN (EXAMPLE_CIRCUIT_DIRECTION_PIN)
+#define DMX_SERIAL_INPUT_PIN (EXAMPLE_CIRCUIT_INPUT_PIN)
 
 // the addresses of the slots to observe
 int test_slotA = 10;
@@ -37,9 +37,9 @@ uint8_t test_levelB = 0;
 uint8_t test_levelC = 0;
 
 //pins for PWM output
-uint8_t led_pinA = 35;
-uint8_t led_pinB = 33;
-uint8_t led_pinC = 25;
+uint8_t led_pinA = 32;
+uint8_t led_pinB = 25;
+uint8_t led_pinC = 26;
 
 //ledc channels (set to zero to disable)
 uint8_t led_channelA = 0;

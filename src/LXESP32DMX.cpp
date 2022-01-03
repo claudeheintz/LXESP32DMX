@@ -102,7 +102,7 @@ static void read_queue_task(void *param) {
             		break;
             	case UART_BREAK:
             		rx = ESP32DMX.handleQueueBreak();	//read remaining slots up to MAX_FRAME
-            		
+            											//slots 480-512 may not read every cycle
             		LXSerial2.flushInput();
                     xQueueReset(uart_queue);
                     
