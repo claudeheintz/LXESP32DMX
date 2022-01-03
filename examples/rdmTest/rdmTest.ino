@@ -18,9 +18,9 @@
 #include <rdm_utility.h>
 #include "esp_task_wdt.h"
 
-#define DMX_DIRECTION_PIN 21
-#define DMX_SERIAL_INPUT_PIN 16
-#define DMX_SERIAL_OUTPUT_PIN 17
+#define DMX_DIRECTION_PIN      EXAMPLE_CIRCUIT_DIRECTION_PIN
+#define DMX_SERIAL_INPUT_PIN   EXAMPLE_CIRCUIT_INPUT_PIN
+#define DMX_SERIAL_OUTPUT_PIN  EXAMPLE_CIRCUIT_OUTPUT_PIN
 #define DEBUG_TEST_PIN 15
 
 uint8_t testLevel = 0;

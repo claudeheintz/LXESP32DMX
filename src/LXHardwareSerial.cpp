@@ -252,7 +252,6 @@ uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8
     /* continue with copy of regular uartBegin() until uart_driver_install */
 
     if (uart_is_driver_installed(uart_nr)) {
-    Serial.println("OK I'm ending uart");
         uartEnd(uart);   //we just installed a driver and now we will uninstall it
     }
 
@@ -409,8 +408,6 @@ void LXHardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, 
 	
 	// SDK 2.0.2 replace call to super begin() with version installing queue
 	//HardwareSerial::begin(baud, config, rxPin, txPin, invert, timeout_ms, rxfifo_full_thrhd);
-	
-	Serial.println("\nused this method");
 
 
 	if(0 > _uart_nr || _uart_nr >= SOC_UART_NUM) {

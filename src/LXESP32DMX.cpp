@@ -171,7 +171,7 @@ static void received_input_task(void *param) {
 	vTaskDelete( NULL );	// delete this task
 }
 
-static void read_rdm_queue_task(void *param) {
+static void rdm_queue_task(void *param) {
     uart_event_t event;
     size_t buffered_size;
     uint8_t* dtmp = (uint8_t*) malloc(DMX_MAX_FRAME);	//probably can get away with 120 bytes since that seems to be event.size
@@ -179,10 +179,19 @@ static void read_rdm_queue_task(void *param) {
     int rx;
     ESP32DMX.setActiveTask(TASK_IS_ACTIVE);
     uint8_t task_mode;
+    TickType_t twait;
+    
     
     while ( ESP32DMX.continueTask() ) {
+		task_mode = ESP32DMX.rdmTaskMode();
+		if ( task_mode  ) {
+			twait = 10;
+		} else {
+			twait = 1000;
+		}
+
         //Waiting for UART event.
-        if ( xQueueReceive(uart_queue, (void * )&event, 10) ) {
+        if ( xQueueReceive(uart_queue, (void * )&event, twait) ) {
             switch(event.type) {
             	case UART_DATA:
             		if ( initial_break ) {
@@ -227,7 +236,7 @@ static void read_rdm_queue_task(void *param) {
             
             }	        // switch
         } else {		// xQueueReceive() returned false, nothing on input
-        	task_mode = ESP32DMX.rdmTaskMode();
+
 			if ( task_mode  ) {
 				if ( task_mode == DMX_TASK_SEND_RDM ) {
 			
@@ -305,6 +314,7 @@ static void rdmTask( void * param ) {
 				LXSerial2.waitFIFOEmpty();
 				LXSerial2.waitTXDone();
 				ESP32DMX._setTaskReceiveRDM();
+				
 				
 			} else {									// otherwise send regular DMX
 				LXSerial2.sendBreak(150);					// send break first (uses hardwareSerialDelayMicroseconds)
@@ -451,7 +461,7 @@ void LX32DMX::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t 
 	_direction_pin = dirpin;
 	digitalWrite(_direction_pin, HIGH);//disable input until setup
 	
-	LXSerial2.begin(250000, SERIAL_8N2, inpin, outpin);
+	LXSerial2.begin(250000, SERIAL_8N2, inpin, outpin, false, 20000UL, 64, 513, &uart_queue);
 	LXSerial2.enableBreakDetect();
 	
 	/********** make the rx queue task **********/
@@ -459,7 +469,7 @@ void LX32DMX::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t 
 	_continue_task = 1;
 	BaseType_t xReturned;
   	xReturned = xTaskCreate(
-                    read_rdm_queue_task,    /* Function that implements the task. */
+                    rdm_queue_task,    /* Function that implements the task. */
                     "RDM-DMX-Task",         /* Text name for the task. */
                     8192,                   /* Stack size in words, not bytes. */
                     this,                   /* Parameter passed into the task. */
@@ -665,11 +675,13 @@ int LX32DMX::handleQueueBreak( void ) {
 
 void LX32DMX::handleQueuePacketComplete( void ) {
 	if ( _receivedData[0] == 0 ) {
-		xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );	// double buffer makes task conflict unlikely, but use mutex anyway
-		memcpy(_dmxData, _receivedData, DMX_MAX_FRAME);
-		xSemaphoreGive( ESP32DMX.lxDataLock );
-		_slots = _current_slot;
-		setInputReceivedTaskStatus(RECEIVE_STATUS_DMX);
+		if ( _current_slot > DMX_MIN_SLOTS ) {
+			xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );	// double buffer makes task conflict unlikely, but use mutex anyway
+			memcpy(_dmxData, _receivedData, DMX_MAX_FRAME);
+			xSemaphoreGive( ESP32DMX.lxDataLock );
+			_slots = _current_slot;
+			setInputReceivedTaskStatus(RECEIVE_STATUS_DMX);
+		}
 	} else if ( _receivedData[0] == RDM_START_CODE ) {
 		if ( validateRDMPacket(_receivedData) ) {
 			xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
