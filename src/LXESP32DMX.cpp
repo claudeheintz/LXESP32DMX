@@ -29,6 +29,9 @@ UID LX32DMX::THIS_DEVICE_ID(0x6C, 0x78, 0x00, 0x00, 0x02, 0x01);
 
 static QueueHandle_t uart_queue;
 
+//global flag
+bool initial_break = false;
+
 // disconnected pin definition
 #define NO_PIN -1
 
@@ -82,7 +85,7 @@ static void read_queue_task(void *param) {
     uart_event_t event;
     size_t buffered_size;
     uint8_t* dtmp = (uint8_t*) malloc(DMX_MAX_FRAME);	//probably can get away with 120 bytes since that seems to be event.size
-    bool initial_break = false;
+    initial_break = false;
     int rx;
     ESP32DMX.setActiveTask(TASK_IS_ACTIVE);
     
@@ -175,7 +178,7 @@ static void rdm_queue_task(void *param) {
     uart_event_t event;
     size_t buffered_size;
     uint8_t* dtmp = (uint8_t*) malloc(DMX_MAX_FRAME);	//probably can get away with 120 bytes since that seems to be event.size
-    bool initial_break = false;
+    initial_break = false;
     int rx;
     ESP32DMX.setActiveTask(TASK_IS_ACTIVE);
     uint8_t task_mode;
@@ -583,9 +586,10 @@ void LX32DMX::setInputReceivedTaskStatus(uint8_t s) {
 	_received_task_status = s;
 }
 
+/*
 void LX32DMX::packetComplete( void ) {
 	if ( _receivedData[0] == 0 ) {				//zero start code is DMX
-		if ( _rdm_read_handled == 0 ) {
+		if ( _rdm_read_handled == ALLOW_DATA_HANDLING ) {
 		    if ( _current_slot > DMX_MIN_SLOTS ) {
 				_slots = _current_slot - 1;				//_current_slot represents next slot so subtract one
 				
@@ -619,13 +623,16 @@ void LX32DMX::packetComplete( void ) {
 	resetFrame();
 	vTaskDelay(1);	//rest and allow other tasks to run (can catch up reading later);
 }
+*/
 
-// NOTE next two method functions to be removed
+// note _dmx_state is probably obsolete and can be removed
 
 void LX32DMX::resetFrame( void ) {		
 	_dmx_state = DMX_STATE_IDLE;						// insure wait for next break
+	initial_break = false;
 }
 
+/*
 void LX32DMX::addReceivedByte(uint8_t value) {
 	if ( _current_slot == 0 ) {
 		if ( _rdm_read_handled ) {
@@ -637,7 +644,7 @@ void LX32DMX::addReceivedByte(uint8_t value) {
 	_receivedData[_current_slot] = value;
 	if ( _current_slot == 2 ) {						//RDM length slot
 		if ( _receivedData[0] == RDM_START_CODE ) {			//RDM start code
-			if ( _rdm_read_handled == 0 ) {
+			if ( _rdm_read_handled == ALLOW_DATA_HANDLING ) {
 				_packet_length = value + 2;				//add two bytes for checksum
 			}
 		} else if ( _receivedData[0] == 0xFE ) {	//RDM Discovery Response
@@ -652,7 +659,7 @@ void LX32DMX::addReceivedByte(uint8_t value) {
 		packetComplete();
 	}
 }
-
+*/
 int LX32DMX::handleQueueData(int esize) {
 	if ( (_current_slot + esize) > DMX_MAX_FRAME ) {
 		esize = DMX_MAX_FRAME - _current_slot;
@@ -674,21 +681,29 @@ int LX32DMX::handleQueueBreak( void ) {
 }
 
 void LX32DMX::handleQueuePacketComplete( void ) {
-	if ( _receivedData[0] == 0 ) {
-		if ( _current_slot > DMX_MIN_SLOTS ) {
-			xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );	// double buffer makes task conflict unlikely, but use mutex anyway
-			memcpy(_dmxData, _receivedData, DMX_MAX_FRAME);
-			xSemaphoreGive( ESP32DMX.lxDataLock );
-			_slots = _current_slot;
-			setInputReceivedTaskStatus(RECEIVE_STATUS_DMX);
+	int i = 0;
+	if ( _rdm_read_handled == DATA_HANDLED_BY_RDM_FUNCTION ) {	//ignore leading zero if DATA_HANDLED_BY_RDM_FUNCTION
+		while (( _receivedData[i] == 0 ) && ( i < 10 )) {
+			i++;
 		}
-	} else if ( _receivedData[0] == RDM_START_CODE ) {
-		if ( validateRDMPacket(_receivedData) ) {
+	}
+	if ( _receivedData[i] == 0 ) {
+		if ( _rdm_read_handled == ALLOW_DATA_HANDLING ) {
+			if ( _current_slot > DMX_MIN_SLOTS ) {
+				xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );	// double buffer makes task conflict unlikely, but use mutex anyway
+				memcpy(_dmxData, _receivedData, DMX_MAX_FRAME);
+				xSemaphoreGive( ESP32DMX.lxDataLock );
+				_slots = _current_slot;
+				setInputReceivedTaskStatus(RECEIVE_STATUS_DMX);
+			}
+		}
+	} else if ( _receivedData[i] == RDM_START_CODE ) {
+		if ( validateRDMPacket(&_receivedData[i]) ) {
 			xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
-			uint8_t plen = _receivedData[2] + 2;
+			uint8_t plen = _receivedData[i+2] + 2;
 			xSemaphoreGive( ESP32DMX.lxDataLock );
 			for(int j=0; j<plen; j++) {
-				_rdmData[j] = _receivedData[j];
+				_rdmData[j] = _receivedData[j+i];
 			}
 			setInputReceivedTaskStatus(RECEIVE_STATUS_RDM);
 		}
@@ -735,7 +750,7 @@ void LX32DMX::byteReceived(uint8_t c) {
 		}
 		_dmx_state = DMX_STATE_RECEIVING;
 		
-		if ( _rdm_read_handled == 0 ) {		//only reset if not directly handling read?
+		if ( _rdm_read_handled == ALLOW_DATA_HANDLING ) {		//only reset if not directly handling read?
 			_current_slot = 0;				//changed 2/16/18
 		}
 		_packet_length = DMX_MAX_FRAME;		// default to receive complete frame
@@ -821,7 +836,7 @@ void LX32DMX::setTaskReceive( void ) {		// only valid if connection started usin
 	_packet_length = DMX_MAX_FRAME;
     _dmx_state = DMX_STATE_IDLE;
     _rdm_task_mode = DMX_TASK_RECEIVE;
-    _rdm_read_handled = 0;
+    _rdm_read_handled = ALLOW_DATA_HANDLING;
     digitalWrite(_direction_pin, LOW);
 }
 
@@ -913,7 +928,7 @@ uint8_t LX32DMX::sendRDMDiscoveryPacket(UID lower, UID upper, UID* single) {
   	UID::copyFromUID(lower, _rdmPacket, 24);
   	UID::copyFromUID(upper, _rdmPacket, 30);
 	
-	_rdm_read_handled = 1;
+	_rdm_read_handled = DATA_HANDLED_BY_RDM_FUNCTION;
 	sendRawRDMPacket(RDM_DISC_UNIQUE_BRANCH_PKTL);
 	delay(3);
 	// any bytes read indicate response to discovery packet
@@ -952,10 +967,10 @@ uint8_t LX32DMX::sendRDMDiscoveryPacket(UID lower, UID upper, UID* single) {
 			}
 		}
 		
-		_rdm_read_handled = 0;
+		_rdm_read_handled = ALLOW_DATA_HANDLING;
 		resetFrame();
 	} else {
-		_rdm_read_handled = 0;
+		_rdm_read_handled = ALLOW_DATA_HANDLING;
 	}
 
 	restoreTaskSendDMX();
@@ -971,7 +986,7 @@ uint8_t LX32DMX::sendRDMDiscoveryMute(UID target, uint8_t cmd) {
 	UID::copyFromUID(target, _rdmPacket, 3);
 	setupRDMMessageDataBlock(_rdmPacket, RDM_DISCOVERY_COMMAND, cmd, 0x00);
 
-	_rdm_read_handled = 1;
+	_rdm_read_handled = DATA_HANDLED_BY_RDM_FUNCTION;
 	sendRawRDMPacket(RDM_PKT_BASE_TOTAL_LEN);
 	delay(3);
 	
@@ -990,10 +1005,10 @@ uint8_t LX32DMX::sendRDMDiscoveryMute(UID target, uint8_t cmd) {
 			Serial.println("fail validate");
 		}
 		
-		_rdm_read_handled = 0;
+		_rdm_read_handled = ALLOW_DATA_HANDLING;
 		resetFrame();
 	} else {
-		_rdm_read_handled = 0;
+		_rdm_read_handled = ALLOW_DATA_HANDLING;
 	}
 	
 	restoreTaskSendDMX();
@@ -1002,7 +1017,7 @@ uint8_t LX32DMX::sendRDMDiscoveryMute(UID target, uint8_t cmd) {
 
 uint8_t LX32DMX::sendRDMControllerPacket( void ) {
 	uint8_t rv = 0;
-	_rdm_read_handled = 1;
+	_rdm_read_handled = DATA_HANDLED_BY_RDM_FUNCTION;
 	sendRawRDMPacket(_rdmPacket[2]+2);
 	delay(3);
 	
@@ -1016,10 +1031,10 @@ uint8_t LX32DMX::sendRDMControllerPacket( void ) {
 		} else {
 		    Serial.println("fail controller packet: not valid");
 		}
-		_rdm_read_handled = 0;
+		_rdm_read_handled = ALLOW_DATA_HANDLING;
 		resetFrame();
 	} else {
-		_rdm_read_handled = 0;
+		_rdm_read_handled = ALLOW_DATA_HANDLING;
 		Serial.println("fail controller packet: no response");
 	}
 	

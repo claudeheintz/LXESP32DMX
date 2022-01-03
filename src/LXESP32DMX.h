@@ -98,6 +98,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define TASK_IS_INACTIVE 0
 #define TASK_IS_ACTIVE   1
+
+#define ALLOW_DATA_HANDLING           0
+#define DATA_HANDLED_BY_RDM_FUNCTION  1
+
     
 typedef void (*LXRecvCallback)(int);
 
@@ -280,7 +284,7 @@ class LX32DMX {
    /*!
     * @brief dmx frame received, call DataReceivedCallback function, if set.
    */
-   void packetComplete( void );
+   //void packetComplete( void );
    
    /*!
     * @brief called to reset input to wait for next break;
@@ -291,7 +295,7 @@ class LX32DMX {
 	 * @brief when reading sets the current slot and advances the counter
 	 * @param value level (0-255)
 	 */
-   void addReceivedByte(uint8_t value);
+    // void addReceivedByte(uint8_t value);
    
    /*!
 	* @brief handle data event
