@@ -10,7 +10,7 @@ If using SDK v2.0.0 RC1 or earlier, use the master branch and replace the follow
 
      [path to sketch folder]/Arduino/hardware/espressif/esp32/cores/esp32/esp32-hal-uart.c
 
-     with the file included with this library in the extras/modified_hal-uart folder.
+     with the appropriate file included with this library in the extras/modified_hal-uart folder.
 
 *****
 If using SDK v2.0.2 or newer use the w202 branch.  The master branch is not compatible with later SDKs.
