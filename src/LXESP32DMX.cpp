@@ -49,16 +49,30 @@ static void send_dmx_task( void * param ) {
   
   while ( ESP32DMX.continueTask() ) {
 
-#define ALT_DMX_SEND 0
-#if ALT_DMX_SEND == 1
+#define HARDWARE_DMX_BREAK 1
+#if HARDWARE_DMX_BREAK == 1
 	// ********** alt?
+	/*
+	 * Timing test results
+	 * no mark after slot 512
+	 * 176µs break
+	 * 115µs MAB @hsdm(24), 61µs @hsdm(10), 41µs @hsdm(5)
+	 */
 	//does not return until after break when tx_fifo_size == 0 see HardwareSerial begin()/instaLL_Driver
+	xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
 	LXSerial2.writeBytesWithBreak(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
-	
-	// minimum MAB 12µs
-	hardwareSerialDelayMicroseconds(24);
+	xSemaphoreGive( ESP32DMX.lxDataLock );
+	hardwareSerialDelayMicroseconds(5);// minimum MAB 12µs (see timing test above)
 	// ********** end alt?
 #else	
+
+	/*
+	 * Timing test results
+	 * 281ms mark after slot 512
+	 * .585ms break
+	 * 57.75µs MAB
+	 */
+
     LXSerial2.sendBreak(150);
     hardwareSerialDelayMicroseconds(12);
     
@@ -241,32 +255,20 @@ static void rdm_queue_task(void *param) {
         } else {		// xQueueReceive() returned false, nothing on input
 
 			if ( task_mode  ) {
-				if ( task_mode == DMX_TASK_SEND_RDM ) {
-			
-				   LXSerial2.sendBreak(150);					// uses hardwareSerialDelayMicroseconds
-				   hardwareSerialDelayMicroseconds(12);
-			   
-				   LXSerial2.write(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());		// data should be set from function that sets flag to get here
-																						// therefore data should not need to be protected by Mutex
-																					
-					//vTaskDelay(1);            //   <-should not be needed here because rdm should be interleaved with regular NSC/DMX		
-												//   vTaskDelay should be called next time though this loop
-												//   ( at least next time bytes are not read or task_mode is send )	
-					LXSerial2.waitFIFOEmpty();
-					LXSerial2.waitTXDone();
+				if ( task_mode == DMX_TASK_SEND_RDM ) {				
+					
+					
+					LXSerial2.writeBytesWithBreak(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());
+					hardwareSerialDelayMicroseconds(5);
+					
 					ESP32DMX._setTaskReceiveRDM();
 				
 				} else {									// otherwise send regular DMX
-					LXSerial2.sendBreak(150);					// send break first (uses hardwareSerialDelayMicroseconds)
-					hardwareSerialDelayMicroseconds(12);    // <- insure no conflict on another thread/task
-			
 					xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
-					LXSerial2.write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
+					LXSerial2.writeBytesWithBreak(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
 					xSemaphoreGive( ESP32DMX.lxDataLock );
-															//vTaskDelay must be called to avoid wdt and lock up issues
-					vTaskDelay(5);							//use time while UART finishes sending to allow other tasks to run
-					LXSerial2.waitFIFOEmpty();				//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
-					LXSerial2.waitTXDone();
+					hardwareSerialDelayMicroseconds(5);
+				
 					if ( task_mode == DMX_TASK_SET_SEND ) {
 						ESP32DMX._setTaskModeSend();
 					}
