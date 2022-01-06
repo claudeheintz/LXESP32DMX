@@ -255,20 +255,40 @@ static void rdm_queue_task(void *param) {
         } else {		// xQueueReceive() returned false, nothing on input
 
 			if ( task_mode  ) {
-				if ( task_mode == DMX_TASK_SEND_RDM ) {				
+				if ( task_mode == DMX_TASK_SEND_RDM ) {		
+				
+				   LXSerial2.sendBreak(150);					// uses hardwareSerialDelayMicroseconds
+				   hardwareSerialDelayMicroseconds(12);
+			   
+				   LXSerial2.write(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());		// data should be set from function that sets flag to get here
+																						// therefore data should not need to be protected by Mutex
+					LXSerial2.waitFIFOEmpty();
+					LXSerial2.waitTXDone();	
 					
-					
+					/*  hardware write (break follows)
 					LXSerial2.writeBytesWithBreak(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());
-					hardwareSerialDelayMicroseconds(5);
+					hardwareSerialDelayMicroseconds(1);
+					*/
 					
 					ESP32DMX._setTaskReceiveRDM();
 				
 				} else {									// otherwise send regular DMX
+					/*
+				   LXSerial2.sendBreak(150);					// uses hardwareSerialDelayMicroseconds
+				   hardwareSerialDelayMicroseconds(12);
+			       xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
+				   LXSerial2.write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);		// data should be set from function that sets flag to get here
+				   xSemaphoreGive( ESP32DMX.lxDataLock );																// therefore data should not need to be protected by Mutex
+																				
+					LXSerial2.waitFIFOEmpty();
+					LXSerial2.waitTXDone();	
+					*/
+					//   hardware write (break follows)
 					xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
 					LXSerial2.writeBytesWithBreak(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
 					xSemaphoreGive( ESP32DMX.lxDataLock );
-					hardwareSerialDelayMicroseconds(5);
-				
+					hardwareSerialDelayMicroseconds(1);
+					
 					if ( task_mode == DMX_TASK_SET_SEND ) {
 						ESP32DMX._setTaskModeSend();
 					}
