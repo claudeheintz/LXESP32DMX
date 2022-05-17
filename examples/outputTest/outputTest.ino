@@ -58,6 +58,5 @@ void loop() {
   
   level++;
 
-  esp_task_wdt_feed();
   vTaskDelay(100);
 }

@@ -232,7 +232,7 @@ uint32_t _get_effective_baudrate(uint32_t baudrate)
  * is local to esp32-hal-uart.c
  * Also, qSize and q are passed to uart_driver_install
  */
-uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8_t rxPin, int8_t txPin, uint16_t rx_buf_sz, bool inverted, uint8_t rxfifo_full_thrhd, int qSize, QueueHandle_t* q)
+uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8_t rxPin, int8_t txPin, uint16_t rx_buf_sz, uint16_t tx_buf_sz, bool inverted, uint8_t rxfifo_full_thrhd, int qSize, QueueHandle_t* q)
 {
     if(uart_nr >= SOC_UART_NUM) {
         return NULL;
@@ -247,7 +247,7 @@ uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8
 	 * to access _uart_bus_array which is static in esp32-hal-uart.c
 	 * the struct is not destroyed with uartEnd(uart)
 	 */
-    uart_t* uart = uartBegin(uart_nr, baudrate, config, rxPin, txPin, rx_buf_sz, inverted, rxfifo_full_thrhd);
+    uart_t* uart = uartBegin(uart_nr, baudrate, config, rxPin, txPin, rx_buf_sz, tx_buf_sz, inverted, rxfifo_full_thrhd);
     
     /* continue with copy of regular uartBegin() until uart_driver_install */
 
@@ -436,7 +436,7 @@ void LXHardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, 
     }
 #endif
 	setRxBufferSize(1024);
-    _uart = uartQueueBegin(_uart_nr, baud ? baud : 9600, config, rxPin, txPin, _rxBufferSize, invert, rxfifo_full_thrhd, qSize, q);
+    _uart = uartQueueBegin(_uart_nr, baud ? baud : 9600, config, rxPin, txPin, _rxBufferSize, 513, invert, rxfifo_full_thrhd, qSize, q);
     
     //NOTE does not detect Baud like HardwareSerial.begin()
 	

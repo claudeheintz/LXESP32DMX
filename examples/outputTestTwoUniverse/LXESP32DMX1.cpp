@@ -20,12 +20,18 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "driver/uart.h"
 #include "LXESP32DMX1.h"
 #include "rdm_utility.h"
 
 LXHardwareSerial LXSerial1(1);	//must be initialized before ESP32DMX
 LX32DMX1 ESP32DMX1;
 
+
+static QueueHandle_t uart_queue1;
+
+//global flag
+bool initial_break1 = false;
 
 // disconnected pin definition
 #define NO_PIN -1
@@ -79,16 +85,16 @@ static void read_queue_task(void *param) {
     uart_event_t event;
     size_t buffered_size;
     uint8_t* dtmp = (uint8_t*) malloc(DMX_MAX_FRAME);	//probably can get away with 120 bytes since that seems to be event.size
-    initial_break = false;
+    initial_break1 = false;
     int rx;
     ESP32DMX1.setActiveTask(TASK_IS_ACTIVE);
     
     while ( ESP32DMX1.continueTask() ) {
         //Waiting for UART event.
-        if ( xQueueReceive(uart_queue, (void * )&event, (portTickType)portMAX_DELAY) ) {
+        if ( xQueueReceive(uart_queue1, (void * )&event, (portTickType)portMAX_DELAY) ) {
             switch(event.type) {
             	case UART_DATA:
-            		if ( initial_break ) {
+            		if ( initial_break1 ) {
             			rx = ESP32DMX1.handleQueueData(event.size);
             			if ( rx >= DMX_MAX_SLOTS ) {
 							ESP32DMX1.handleQueuePacketComplete(); // only copies buffer and sets input flag!
@@ -101,31 +107,31 @@ static void read_queue_task(void *param) {
             		rx = ESP32DMX1.handleQueueBreak();	//read remaining slots up to MAX_FRAME
             											//slots 480-512 may not read every cycle
             		LXSerial1.flushInput();
-                    xQueueReset(uart_queue);
+                    xQueueReset(uart_queue1);
                     
                     //wait until after fifo reset to process completed packet
-                    if ( initial_break ) {
+                    if ( initial_break1 ) {
                     	if ( rx > 0 ) {
                     		ESP32DMX1.handleQueuePacketComplete(); // only copies buffer and sets input flag!
 						}
                     } else {
-                    	initial_break = true;
+                    	initial_break1 = true;
 					}
 					ESP32DMX1.handleResetQueuePacket();
             		break;
             	case UART_FIFO_OVF:
             		LXSerial1.clearFIFOOverflow();
             		LXSerial1.flushInput();
-                    xQueueReset(uart_queue);
+                    xQueueReset(uart_queue1);
             		Serial.println("fifo over");
-            		initial_break = false;
+            		initial_break1 = false;
             		break;
             	default:					// error?
             		LXSerial1.flushInput();
-                    xQueueReset(uart_queue);
+                    xQueueReset(uart_queue1);
             		Serial.print("other event ");
             		Serial.println(event.type);
-            		initial_break = false;
+            		initial_break1 = false;
             		
             
             }	// switch
@@ -172,7 +178,7 @@ static void rdm_queue_task(void *param) {
     uart_event_t event;
     size_t buffered_size;
     uint8_t* dtmp = (uint8_t*) malloc(DMX_MAX_FRAME);	//probably can get away with 120 bytes since that seems to be event.size
-    initial_break = false;
+    initial_break1 = false;
     int rx;
     ESP32DMX1.setActiveTask(TASK_IS_ACTIVE);
     uint8_t task_mode;
@@ -188,10 +194,10 @@ static void rdm_queue_task(void *param) {
 		}
 
         //Waiting for UART event.
-        if ( xQueueReceive(uart_queue, (void * )&event, twait) ) {
+        if ( xQueueReceive(uart_queue1, (void * )&event, twait) ) {
             switch(event.type) {
             	case UART_DATA:
-            		if ( initial_break ) {
+            		if ( initial_break1 ) {
             			rx = ESP32DMX1.handleQueueData(event.size);
             			if ( rx >= DMX_MAX_SLOTS ) {
 							ESP32DMX1.handleQueuePacketComplete(); // only copies buffer and sets input flag!
@@ -204,31 +210,31 @@ static void rdm_queue_task(void *param) {
             		rx = ESP32DMX1.handleQueueBreak();	//read remaining slots up to MAX_FRAME
             		
             		LXSerial1.flushInput();
-                    xQueueReset(uart_queue);
+                    xQueueReset(uart_queue1);
                     
                     //wait until after fifo reset to process completed packet
-                    if ( initial_break ) {
+                    if ( initial_break1 ) {
                     	if ( rx > 0 ) {
                     		ESP32DMX1.handleQueuePacketComplete(); // only copies buffer and sets input flag!
 						}
                     } else {
-                    	initial_break = true;
+                    	initial_break1 = true;
 					}
 					ESP32DMX1.handleResetQueuePacket();
             		break;
             	case UART_FIFO_OVF:
             		LXSerial1.clearFIFOOverflow();
             		LXSerial1.flushInput();
-                    xQueueReset(uart_queue);
+                    xQueueReset(uart_queue1);
             		Serial.println("fifo over");
-            		initial_break = false;
+            		initial_break1 = false;
             		break;
             	default:					// error?
             		LXSerial1.flushInput();
-                    xQueueReset(uart_queue);
+                    xQueueReset(uart_queue1);
             		Serial.print("other event ");
             		Serial.println(event.type);
-            		initial_break = false;
+            		initial_break1 = false;
             		
             
             }	        // switch
@@ -304,7 +310,7 @@ LX32DMX1::~LX32DMX1 ( void ) {
     _rdm_receive_callback = NULL;
 }
 
-void LX32DMX1::startOutput ( uint8_t pin ) {
+void LX32DMX1::startOutput ( uint8_t pin, UBaseType_t priorityOverIdle ) {
 	if ( _xHandle != NULL ) {
 		stop();
 	}
@@ -332,7 +338,7 @@ void LX32DMX1::startOutput ( uint8_t pin ) {
     }
 }
 
-void LX32DMX1::startInput ( uint8_t pin ) {
+void LX32DMX1::startInput ( uint8_t pin, UBaseType_t priorityOverIdle) {
 	if ( _xHandle != NULL ) {
 		stop();
 	}
@@ -342,7 +348,7 @@ void LX32DMX1::startInput ( uint8_t pin ) {
 		digitalWrite(_direction_pin, HIGH);
 	}
 	
-	LXSerial1.begin(250000, SERIAL_8N2, pin, NO_PIN, false, 20000UL, 64, 513, &uart_queue);
+	LXSerial1.begin(250000, SERIAL_8N2, pin, NO_PIN, false, 20000UL, 64, 513, &uart_queue1);
 	LXSerial1.enableBreakDetect();
 
 	/********** make the rx queue task **********/
@@ -350,7 +356,7 @@ void LX32DMX1::startInput ( uint8_t pin ) {
 	_continue_task = 1;					// flag for task loop
 	BaseType_t xReturned;
   	xReturned = xTaskCreate(
-                    receiveDMX,         /* Function that implements the task. */
+                    read_queue_task,         /* Function that implements the task. */
                     "DMX-In",              /* Text name for the task. */
                     8192,               /* Stack size in words, not bytes. */
                     this,               /* Parameter passed into the task. */
@@ -384,7 +390,7 @@ void LX32DMX1::startInput ( uint8_t pin ) {
 	}
 }
 
-void LX32DMX1::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t direction ) {
+void LX32DMX1::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t direction, UBaseType_t priorityOverIdle ) {
 	if ( _xHandle != NULL ) {
 		stop();
 	}
@@ -393,7 +399,7 @@ void LX32DMX1::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t
 	_direction_pin = dirpin;
 	digitalWrite(_direction_pin, HIGH);//disable input until setup
 	
-	LXSerial1.begin(250000, SERIAL_8N2, inpin, outpin, false, 20000UL, 64, 513, &uart_queue);
+	LXSerial1.begin(250000, SERIAL_8N2, inpin, outpin, false, 20000UL, 64, 513, &uart_queue1);
 	LXSerial1.enableBreakDetect();
 
 	_continue_task = 1;

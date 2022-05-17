@@ -68,7 +68,7 @@ void uartWaitFIFOEmpty(uart_t* uart);
 void uartDisableInterrupts(uart_t* uart);
 void uartSetInterrupts(uart_t* uart, uint32_t value);
 
-uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8_t rxPin, int8_t txPin, uint16_t rx_buf_sz, bool inverted, uint8_t rxfifo_full_thrhd, int qSize, QueueHandle_t* q);
+uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8_t rxPin, int8_t txPin, uint16_t rx_buf_sz, uint16_t tx_buf_sz, bool inverted, uint8_t rxfifo_full_thrhd, int qSize, QueueHandle_t* q);
 
 void hardwareSerialDelayMicroseconds(uint32_t us);
 
