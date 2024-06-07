@@ -113,6 +113,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define ALLOW_DATA_HANDLING           0
 #define DATA_HANDLED_BY_RDM_FUNCTION  1
 
+#define DMX_INPUT_CONSIDER_UNAVAILABLE_TIME 750
+
 typedef void (*LXRecvCallback)(int);
 
 /*!   
@@ -140,6 +142,7 @@ class LX32DMX {
   public:       
       LX32DMX(const uint8_t UARTID = 2);
       ~LX32DMX( void );
+      bool isInputActive();      
 
    /*!
     * @brief starts task that continuously sends DMX output
@@ -539,6 +542,8 @@ class LX32DMX {
     LXHardwareSerial* pLXSerial;
     
   protected:
+   unsigned long lastDmxDataTimer = 0;
+   bool DMXinputIsActive = false;
    QueueHandle_t uart_queue;
    bool initial_break;
    static void send_dmx_task(void* param);

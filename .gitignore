@@ -1,1 +1,10 @@
 .DS_Store
+/.vs
+/src/.vs/outputTest/v16
+/src/obj
+/src/__vm
+/src/outputTest.vcxproj.filters
+/src/outputTest.vcxproj
+/src/outputTest.sln
+/src/outputTest.ino
+/CppProperties.json

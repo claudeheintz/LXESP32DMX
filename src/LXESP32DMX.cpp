@@ -123,6 +123,8 @@ void LX32DMX::read_queue_task(void *param)
             		} else {
             			rx = dmx->pLXSerial->readBytes(dtmp, event.size, portMAX_DELAY);	//drain fifo (result is ignored)
             		}
+					dmx->lastDmxDataTimer = millis();
+					dmx->DMXinputIsActive = true;
             		break;
             	case UART_BREAK:
             		rx = dmx->handleQueueBreak();	//read remaining slots up to MAX_FRAME
@@ -227,6 +229,8 @@ void LX32DMX::rdm_queue_task(void *param)
             		} else {
             			rx = dmx->pLXSerial->readBytes(dtmp, event.size, portMAX_DELAY);	//drain fifo (result is ignored)
             		}
+					dmx->lastDmxDataTimer = millis();
+					dmx->DMXinputIsActive = true;
             		break;
             	case UART_BREAK:
             		rx = dmx->handleQueueBreak();	//read remaining slots up to MAX_FRAME
@@ -408,6 +412,18 @@ LX32DMX::~LX32DMX ( void ){
     _receive_callback = NULL;
     _rdm_receive_callback = NULL;
 	delete pLXSerial;
+}
+
+bool LX32DMX::isInputActive()
+{
+	if (DMXinputIsActive)
+	{
+		//Serial.print(F("InputActive:")); Serial.println((millis() - lastDmxDataTimer));
+		bool active = (millis() - lastDmxDataTimer) < DMX_INPUT_CONSIDER_UNAVAILABLE_TIME;
+		if (!active)
+			DMXinputIsActive = false;
+		return active;
+	}
 }
 
 void LX32DMX::startOutput ( uint8_t pin, UBaseType_t priorityOverIdle, uint8_t AssignToCore)
