@@ -14,8 +14,8 @@
 /**************************************************************************/
 
 #include <Arduino.h>
-#include <TOD.h>
-#include <rdm_utility.h>
+#include "TOD.h"
+#include "rdm_utility.h"
 
 TOD::TOD( void ) {
     reset();

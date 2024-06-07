@@ -11,6 +11,7 @@
 
     v1.0 - First release
     v2.x - rewrite for ESP32 SDK 2.0.2
+    v2.1 - updated for SDK compatability
 */
 /**************************************************************************/
 
@@ -252,7 +253,7 @@ uart_t* uartQueueBegin(uint8_t uart_nr, uint32_t baudrate, uint32_t config, int8
     /* continue with copy of regular uartBegin() until uart_driver_install */
 
     if (uart_is_driver_installed(uart_nr)) {
-        uartEnd(uart);   //we just installed a driver and now we will uninstall it
+        uartEnd(uart_nr);   //we just installed a driver and now we will uninstall it
     }
 
 #if !CONFIG_DISABLE_HAL_LOCKS
@@ -322,7 +323,7 @@ void LXHardwareSerial::end() {
         uartSetDebug(0);
     }
     //uartEnd(_uart, _rx_gpio_pin, _tx_gpio_pin);		//Arduino esp32 1.0.5
-    uartEnd(_uart);								        // 1.0.4, 2.0.1
+    uartEnd(_uart_nr);								        // 1.0.4, 2.0.1
     _uart = 0;
 }
 
@@ -417,7 +418,7 @@ void LXHardwareSerial::begin(unsigned long baud, uint32_t config, int8_t rxPin, 
     if(_uart) {
         // in this case it is a begin() over a previous begin() - maybe to change baud rate
         // thus do not disable debug output
-        HardwareSerial::end(false);
+        HardwareSerial::end();
     }
     if(_uart_nr == 0 && rxPin < 0 && txPin < 0) {
         rxPin = SOC_RX0;
