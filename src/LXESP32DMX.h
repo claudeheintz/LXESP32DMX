@@ -536,7 +536,7 @@ class LX32DMX {
     */
     static UID THIS_DEVICE_ID;
 
-    LXHardwareSerial* prtLXSerial;
+    LXHardwareSerial* pLXSerial;
     
   protected:
    QueueHandle_t uart_queue;

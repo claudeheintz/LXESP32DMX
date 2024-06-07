@@ -64,7 +64,7 @@ void LX32DMX::send_dmx_task( void * param )
 	//does not return until after break when tx_fifo_size == 0 see HardwareSerial begin()/instaLL_Driver
 	  if (xSemaphoreTake(dmx->lxDataLock, SEMAPHORE_TIMEOUT_STATEMENT) == pdTRUE)
 	  {
-		  dmx->prtLXSerial->writeBytesWithBreak(dmx->dmxData(), dmx->numberOfSlots() + 1);
+		  dmx->pLXSerial->writeBytesWithBreak(dmx->dmxData(), dmx->numberOfSlots() + 1);
 		  xSemaphoreGive(dmx->lxDataLock);
 		  hardwareSerialDelayMicroseconds(5);// minimum MAB 12µs (see timing test above)
 	  }
@@ -77,17 +77,17 @@ void LX32DMX::send_dmx_task( void * param )
 	 * 57.75µs MAB
 	 */
 
-	dmx->prtLXSerial->sendBreak(150);
+	dmx->pLXSerial->sendBreak(150);
     hardwareSerialDelayMicroseconds(12);
     
 	if (xSemaphoreTake(dmx->lxDataLock, SEMAPHORE_TIMEOUT_STATEMENT) == pdTRUE)
 	{
-		dmx->prtLXSerial->write(dmx->dmxData(), dmx->numberOfSlots() + 1);
+		dmx->pLXSerial->write(dmx->dmxData(), dmx->numberOfSlots() + 1);
 		xSemaphoreGive(dmx->lxDataLock);
 		//vTaskDelay must be called to avoid wdt and lock up issues
 		vTaskDelay(5);					//use time while UART finishes sending to allow other tasks to run
-		dmx->prtLXSerial->waitFIFOEmpty();		//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
-		dmx->prtLXSerial->waitTXDone();
+		dmx->pLXSerial->waitFIFOEmpty();		//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
+		dmx->pLXSerial->waitTXDone();
 		// break at end is actually for next packet...
 		dmx->setDMXPacketSent(1);
 	}
@@ -121,13 +121,13 @@ void LX32DMX::read_queue_task(void *param)
 							dmx->handleQueuePacketComplete(); // only copies buffer and sets input flag!
 						}
             		} else {
-            			rx = dmx->prtLXSerial->readBytes(dtmp, event.size, portMAX_DELAY);	//drain fifo (result is ignored)
+            			rx = dmx->pLXSerial->readBytes(dtmp, event.size, portMAX_DELAY);	//drain fifo (result is ignored)
             		}
             		break;
             	case UART_BREAK:
             		rx = dmx->handleQueueBreak();	//read remaining slots up to MAX_FRAME
             											//slots 480-512 may not read every cycle
-					dmx->prtLXSerial->flushInput();
+					dmx->pLXSerial->flushInput();
                     xQueueReset(dmx->uart_queue);
                     
                     //wait until after fifo reset to process completed packet
@@ -141,14 +141,14 @@ void LX32DMX::read_queue_task(void *param)
 					dmx->handleResetQueuePacket();
             		break;
             	case UART_FIFO_OVF:
-					dmx->prtLXSerial->clearFIFOOverflow();
-					dmx->prtLXSerial->flushInput();
+					dmx->pLXSerial->clearFIFOOverflow();
+					dmx->pLXSerial->flushInput();
                     xQueueReset(dmx->uart_queue);
             		Serial.println("fifo over");
 					dmx->initial_break = false;
             		break;
             	default:					// error?
-					dmx->prtLXSerial->flushInput();
+					dmx->pLXSerial->flushInput();
                     xQueueReset(dmx->uart_queue);
             		Serial.print("other event ");
             		Serial.println(event.type);
@@ -225,13 +225,13 @@ void LX32DMX::rdm_queue_task(void *param)
 							dmx->handleQueuePacketComplete(); // only copies buffer and sets input flag!
 						}
             		} else {
-            			rx = dmx->prtLXSerial->readBytes(dtmp, event.size, portMAX_DELAY);	//drain fifo (result is ignored)
+            			rx = dmx->pLXSerial->readBytes(dtmp, event.size, portMAX_DELAY);	//drain fifo (result is ignored)
             		}
             		break;
             	case UART_BREAK:
             		rx = dmx->handleQueueBreak();	//read remaining slots up to MAX_FRAME
             		
-            		dmx->prtLXSerial->flushInput();
+            		dmx->pLXSerial->flushInput();
                     xQueueReset(dmx->uart_queue);
                     
                     //wait until after fifo reset to process completed packet
@@ -245,14 +245,14 @@ void LX32DMX::rdm_queue_task(void *param)
 					dmx->handleResetQueuePacket();
             		break;
             	case UART_FIFO_OVF:
-            		dmx->prtLXSerial->clearFIFOOverflow();
-            		dmx->prtLXSerial->flushInput();
+            		dmx->pLXSerial->clearFIFOOverflow();
+            		dmx->pLXSerial->flushInput();
                     xQueueReset(dmx->uart_queue);
             		Serial.println("fifo over");
 					dmx->initial_break = false;
             		break;
             	default:					// error?
-            		dmx->prtLXSerial->flushInput();
+            		dmx->pLXSerial->flushInput();
                     xQueueReset(dmx->uart_queue);
             		Serial.print("other event ");
             		Serial.println(event.type);
@@ -265,16 +265,16 @@ void LX32DMX::rdm_queue_task(void *param)
 			if ( task_mode  ) {
 				if ( task_mode == DMX_TASK_SEND_RDM ) {		
 				
-				   dmx->prtLXSerial->sendBreak(150);					// uses hardwareSerialDelayMicroseconds
+				   dmx->pLXSerial->sendBreak(150);					// uses hardwareSerialDelayMicroseconds
 				   hardwareSerialDelayMicroseconds(12);
 			   
-				   dmx->prtLXSerial->write(dmx->rdmData(), dmx->rdmPacketLength());		// data should be set from function that sets flag to get here
+				   dmx->pLXSerial->write(dmx->rdmData(), dmx->rdmPacketLength());		// data should be set from function that sets flag to get here
 																						// therefore data should not need to be protected by Mutex
-					dmx->prtLXSerial->waitFIFOEmpty();
-					dmx->prtLXSerial->waitTXDone();
+					dmx->pLXSerial->waitFIFOEmpty();
+					dmx->pLXSerial->waitTXDone();
 					
 					/*  hardware write (break follows)
-					dmx->prtLXSerial->writeBytesWithBreak(dmx->rdmData(), dmx->rdmPacketLength());
+					dmx->pLXSerial->writeBytesWithBreak(dmx->rdmData(), dmx->rdmPacketLength());
 					hardwareSerialDelayMicroseconds(1);
 					*/
 					
@@ -282,20 +282,20 @@ void LX32DMX::rdm_queue_task(void *param)
 				
 				} else {									// otherwise send regular DMX
 					/*
-				   dmx->prtLXSerial->sendBreak(150);					// uses hardwareSerialDelayMicroseconds
+				   dmx->pLXSerial->sendBreak(150);					// uses hardwareSerialDelayMicroseconds
 				   hardwareSerialDelayMicroseconds(12);
 			       xSemaphoreTake( dmx->lxDataLock, portMAX_DELAY );
-				   dmx->prtLXSerial->write(dmx->dmxData(), dmx->numberOfSlots()+1);		// data should be set from function that sets flag to get here
+				   dmx->pLXSerial->write(dmx->dmxData(), dmx->numberOfSlots()+1);		// data should be set from function that sets flag to get here
 				   xSemaphoreGive( dmx->lxDataLock );																// therefore data should not need to be protected by Mutex
 																				
-					dmx->prtLXSerial->waitFIFOEmpty();
-					dmx->prtLXSerial->waitTXDone();	
+					dmx->pLXSerial->waitFIFOEmpty();
+					dmx->pLXSerial->waitTXDone();	
 					*/
 					//   hardware write (break follows)
 					if (xSemaphoreTake(dmx->lxDataLock, SEMAPHORE_TIMEOUT_STATEMENT) == pdTRUE)
 					{
 						//xSemaphoreTake( dmx->lxDataLock, portMAX_DELAY );
-						dmx->prtLXSerial->writeBytesWithBreak(dmx->dmxData(), dmx->numberOfSlots() + 1);
+						dmx->pLXSerial->writeBytesWithBreak(dmx->dmxData(), dmx->numberOfSlots() + 1);
 						xSemaphoreGive(dmx->lxDataLock);
 						hardwareSerialDelayMicroseconds(1);
 						if (task_mode == DMX_TASK_SET_SEND)
@@ -330,7 +330,7 @@ static void rdmTask( void * param ) {
   
   while ( ESP32DMX.continueTask() ) {
   
-	c = dmx->prtLXSerial->read();
+	c = dmx->pLXSerial->read();
 	
 	if ( c >= 0 ) {								// if byte read, receive it...may invoke callback function
 		//ESP32DMX.byteReceived(c&0xff);			// eventually will catch up, nothing to read and vTaskDelay will be called
@@ -339,31 +339,31 @@ static void rdmTask( void * param ) {
 		if ( task_mode  ) {
 			if ( task_mode == DMX_TASK_SEND_RDM ) {
 			
-			   dmx->prtLXSerial->sendBreak(150);					// uses hardwareSerialDelayMicroseconds
+			   dmx->pLXSerial->sendBreak(150);					// uses hardwareSerialDelayMicroseconds
 			   hardwareSerialDelayMicroseconds(12);
 			   
-			   dmx->prtLXSerial->write(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());		// data should be set from function that sets flag to get here
+			   dmx->pLXSerial->write(ESP32DMX.rdmData(), ESP32DMX.rdmPacketLength());		// data should be set from function that sets flag to get here
 																					// therefore data should not need to be protected by Mutex
 																					
 				//vTaskDelay(1);            //   <-should not be needed here because rdm should be interleaved with regular NSC/DMX		
 											//   vTaskDelay should be called next time though this loop
 											//   ( at least next time bytes are not read or task_mode is send )	
-				dmx->prtLXSerial->waitFIFOEmpty();
-				dmx->prtLXSerial->waitTXDone();
+				dmx->pLXSerial->waitFIFOEmpty();
+				dmx->pLXSerial->waitTXDone();
 				ESP32DMX._setTaskReceiveRDM();
 				
 				
 			} else {									// otherwise send regular DMX
-				dmx->prtLXSerial->sendBreak(150);					// send break first (uses hardwareSerialDelayMicroseconds)
+				dmx->pLXSerial->sendBreak(150);					// send break first (uses hardwareSerialDelayMicroseconds)
 				hardwareSerialDelayMicroseconds(12);    // <- insure no conflict on another thread/task
 			
 				xSemaphoreTake( ESP32DMX.lxDataLock, portMAX_DELAY );
-				dmx->prtLXSerial->write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
+				dmx->pLXSerial->write(ESP32DMX.dmxData(), ESP32DMX.numberOfSlots()+1);
 				xSemaphoreGive( ESP32DMX.lxDataLock );
 														//vTaskDelay must be called to avoid wdt and lock up issues
 				vTaskDelay(5);							//use time while UART finishes sending to allow other tasks to run
-				dmx->prtLXSerial->waitFIFOEmpty();				//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
-				dmx->prtLXSerial->waitTXDone();
+				dmx->pLXSerial->waitFIFOEmpty();				//returns at about byte 384 ~128 bytes left 128 * 44 = 5.6 ms
+				dmx->pLXSerial->waitTXDone();
 				if ( task_mode == DMX_TASK_SET_SEND ) {
 					ESP32DMX._setTaskModeSend();
 				}
@@ -387,7 +387,7 @@ static void rdmTask( void * param ) {
  ***********************  LX32DMX member functions  ********************/
 
 LX32DMX::LX32DMX ( const uint8_t UARTID ) {
-	prtLXSerial = new LXHardwareSerial(UARTID);	//must be initialized before ESP32DMX
+	pLXSerial = new LXHardwareSerial(UARTID);	//must be initialized before ESP32DMX
     lxDataLock = xSemaphoreCreateMutex();
 	_direction_pin = DIRECTION_PIN_NOT_USED;	//optional
 	_slots = DMX_MAX_SLOTS;
@@ -407,7 +407,7 @@ LX32DMX::~LX32DMX ( void ){
     stop();
     _receive_callback = NULL;
     _rdm_receive_callback = NULL;
-	delete prtLXSerial;
+	delete pLXSerial;
 }
 
 void LX32DMX::startOutput ( uint8_t pin, UBaseType_t priorityOverIdle, uint8_t AssignToCore)
@@ -425,7 +425,7 @@ void LX32DMX::startOutput ( uint8_t pin, UBaseType_t priorityOverIdle, uint8_t A
 		digitalWrite(_direction_pin, HIGH);
 	}
 	
-	this->prtLXSerial->begin(250000, SERIAL_8N2, NO_PIN, pin);
+	this->pLXSerial->begin(250000, SERIAL_8N2, NO_PIN, pin);
 	
 	_continue_task = 1;					// flag for task loop
 	BaseType_t xReturned;
@@ -457,8 +457,8 @@ void LX32DMX::startInput ( uint8_t pin , UBaseType_t priorityOverIdle, uint8_t A
 		digitalWrite(_direction_pin, HIGH);
 	}
 	
-	this->prtLXSerial->begin(250000, SERIAL_8N2, pin, NO_PIN, false, 20000UL, 64, 513, &uart_queue);
-	this->prtLXSerial->enableBreakDetect();
+	this->pLXSerial->begin(250000, SERIAL_8N2, pin, NO_PIN, false, 20000UL, 64, 513, &uart_queue);
+	this->pLXSerial->enableBreakDetect();
 	
 	/********** make the rx queue task **********/
 	
@@ -513,8 +513,8 @@ void LX32DMX::startRDM ( uint8_t dirpin, uint8_t inpin, uint8_t outpin, uint8_t 
 	_direction_pin = dirpin;
 	digitalWrite(_direction_pin, HIGH);//disable input until setup
 	
-	this->prtLXSerial->begin(250000, SERIAL_8N2, inpin, outpin, false, 20000UL, 64, 513, &uart_queue);
-	this->prtLXSerial->enableBreakDetect();
+	this->pLXSerial->begin(250000, SERIAL_8N2, inpin, outpin, false, 20000UL, 64, 513, &uart_queue);
+	this->pLXSerial->enableBreakDetect();
 	
 	/********** make the rx queue task **********/
 
@@ -567,7 +567,7 @@ void LX32DMX::stop ( void ) {
 	
 	_xHandle = NULL;	// task is deleted when while(_continue_task){...} ends
 	_xRecvHandle = NULL;
-	this->prtLXSerial->end();
+	this->pLXSerial->end();
 }
 
 void LX32DMX::setDirectionPin( uint8_t pin ) {
@@ -714,7 +714,7 @@ int LX32DMX::handleQueueData(int esize) {
 		esize = DMX_MAX_FRAME - _current_slot;
 	}
 	if ( esize > 0 ) {
-		int rbytes = this->prtLXSerial->readBytes(&_receivedData[_current_slot], esize, portMAX_DELAY);
+		int rbytes = this->pLXSerial->readBytes(&_receivedData[_current_slot], esize, portMAX_DELAY);
 		_current_slot += rbytes;
 	}
 	return _current_slot;
@@ -722,7 +722,7 @@ int LX32DMX::handleQueueData(int esize) {
 
 int LX32DMX::handleQueueBreak( void ) {
 	// read out remaining bytes up tp DMX_MAX_FRAME
-	int rbytes = this->prtLXSerial->available();
+	int rbytes = this->pLXSerial->available();
 	if ( rbytes ) {
 		handleQueueData(rbytes);
 	}
@@ -921,12 +921,12 @@ void LX32DMX::sendRawRDMPacketImmediately( uint8_t len ) {		// only valid if con
 	
 	digitalWrite(_direction_pin, HIGH);
 	
-	this->prtLXSerial->sendBreak(88);					// uses hardwareSerialDelayMicroseconds
+	this->pLXSerial->sendBreak(88);					// uses hardwareSerialDelayMicroseconds
 	hardwareSerialDelayMicroseconds(12);
 	
-	this->prtLXSerial->write(this->rdmData(), this->rdmPacketLength());
-	this->prtLXSerial->waitFIFOEmpty();
-	this->prtLXSerial->waitTXDone();
+	this->pLXSerial->write(this->rdmData(), this->rdmPacketLength());
+	this->pLXSerial->waitFIFOEmpty();
+	this->pLXSerial->waitTXDone();
 	digitalWrite(_direction_pin, LOW);
 }
 
@@ -1239,9 +1239,9 @@ void LX32DMX::sendRDMDiscoverBranchResponse( void ) {
 	
 	digitalWrite(_direction_pin, HIGH);
 	
-	this->prtLXSerial->write(&_rdmPacket[1], 24);	// note no start code [0]
-	this->prtLXSerial->waitFIFOEmpty();
-	this->prtLXSerial->waitTXDone();
+	this->pLXSerial->write(&_rdmPacket[1], 24);	// note no start code [0]
+	this->pLXSerial->waitFIFOEmpty();
+	this->pLXSerial->waitTXDone();
 	digitalWrite(_direction_pin, LOW);
 }
 
