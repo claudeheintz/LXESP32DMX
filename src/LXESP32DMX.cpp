@@ -424,6 +424,7 @@ bool LX32DMX::isInputActive()
 			DMXinputIsActive = false;
 		return active;
 	}
+	return false;
 }
 
 void LX32DMX::startOutput ( uint8_t pin, UBaseType_t priorityOverIdle, uint8_t AssignToCore)

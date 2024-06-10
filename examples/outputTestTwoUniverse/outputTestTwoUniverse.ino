@@ -11,9 +11,12 @@
     v1.00 - First release
 */
 /**************************************************************************/
-#include <LXESP32DMX.h>
-#include "LXESP32DMX1.h"
 
+#define DO_NO_CREATE_DEFAULT_LXESP32DMX_CLASS_OBJECT 1
+#include <LXESP32DMX.h>
+
+LX32DMX ESP32DMX(1);
+LX32DMX ESP32DMX1(2);
 
 uint8_t level;
 uint8_t dmxbuffer[DMX_MAX_FRAME];
