@@ -2,6 +2,7 @@
    Copyright 2017-2022 by Claude Heintz Design
 
 Copyright (c) 2017-2022, Claude Heintz
+              2024 updated by Roeland Kluit
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -32,9 +33,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
    The LXESP32DMX library supports output and input of DMX using the UART
    serial output of an ESP32 microcontroller.  LXESP32DMX uses
-   UART2for output.  This means that hardware Serial
+   UART2for output by default.  This means that hardware Serial
    can still be used for USB communication.
-   (do not use Serial1 because it is connected to flash)
+   (do not use default Serial1 pins because it is connected to flash)
    
    Input functionality requires replacing the esp32-hal-uart.c
    files in Arduino/hardware/espressif/esp32/cores/esp32/
@@ -48,9 +49,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    v1.1 - simplifies modifications to esp32-hal-uart.c required for DMX input
    v1.2 - improve multi-task compatibility
    v2.x - rewrite for ESP32 SDK 2.0.2
+   v3.0 - Roeland Kluit;
+           Updated to allow multiple instances for multiple UARTS
+           Moved all external functions into static members
+           Added timeouts to semaphore operations
+           Added CPU core selection for tasks   
    
  */
-
 
 #ifndef LX32DMX_H
 #define LX32DMX_H
@@ -70,6 +75,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define DMX_MAX_FRAME 513
 
 #define DIRECTION_PIN_NOT_USED 255
+
+ //Set to 1 in sketch to prevent creation of default class object
+#ifndef DO_NO_CREATE_DEFAULT_LXESP32DMX_CLASS_OBJECT 
+    #define DO_NO_CREATE_DEFAULT_LXESP32DMX_CLASS_OBJECT 0
+#endif// !DO_NO_CREATE_DEFAULT_LXESP32DMX_CLASS_OBJECT
+
 
 #define EXAMPLE_CIRCUIT_DIRECTION_PIN 21
 #define EXAMPLE_CIRCUIT_INPUT_PIN     16
@@ -102,7 +113,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define ALLOW_DATA_HANDLING           0
 #define DATA_HANDLED_BY_RDM_FUNCTION  1
 
-    
+#define DMX_INPUT_CONSIDER_UNAVAILABLE_TIME 750
+
 typedef void (*LXRecvCallback)(int);
 
 /*!   
@@ -127,17 +139,17 @@ typedef void (*LXRecvCallback)(int);
 
 class LX32DMX {
 
-  public:
-  
-	LX32DMX ( void );
-   ~LX32DMX( void );
-    
+  public:       
+      LX32DMX(const uint8_t UARTID = 2);
+      ~LX32DMX( void );
+      bool isInputActive();      
+
    /*!
     * @brief starts task that continuously sends DMX output
     * @discussion begins serial TX connection.
     			  Creates task that continuously sends dmx data.
    */
-   void startOutput( uint8_t pin=17, UBaseType_t priorityOverIdle=1 );
+   void startOutput( uint8_t pin=17, UBaseType_t priorityOverIdle=1, uint8_t AssignToCore = 1);
    
    /*!
     * @brief starts task that continuously reads DMX data
@@ -150,7 +162,7 @@ class LX32DMX {
     *					   when startInput is called, flush and therefore
     *					   HardwareSerial::begin can hang...
    */
-   void startInput( uint8_t pin=16, UBaseType_t priorityOverIdle=1 );
+   void startInput( uint8_t pin=16, UBaseType_t priorityOverIdle=1, uint8_t AssignToCore = 1);
    
    /*!
     * @brief starts task that continuously reads and optionally sends DMX data.
@@ -167,7 +179,8 @@ class LX32DMX {
    				   uint8_t inpin=16,
    				   uint8_t outpin=17,
    				   uint8_t direction=1,
-   				   UBaseType_t priorityOverIdle=1);
+   				   UBaseType_t priorityOverIdle=1,
+                   uint8_t AssignToCore = 1);
    
    /*!
     * @brief disables transmission and tx interrupt
@@ -525,9 +538,18 @@ class LX32DMX {
     *                  ESP32DMX.THIS_DEVICE_ID.setBytes() to change default
     */
     static UID THIS_DEVICE_ID;
+
+    LXHardwareSerial* pLXSerial;
     
   protected:
-
+   unsigned long lastDmxDataTimer = 0;
+   bool DMXinputIsActive = false;
+   QueueHandle_t uart_queue;
+   bool initial_break;
+   static void send_dmx_task(void* param);
+   static void read_queue_task(void* param);
+   static void received_input_task(void* param);
+   static void rdm_queue_task(void* param);
    /*!
    * @brief represents phase of sending dmx packet data/break/etc used to change baud settings
    */
@@ -634,11 +656,14 @@ class LX32DMX {
     * @brief Pointer to receive callback function
     */
   	LXRecvCallback _rdm_receive_callback;
+
+
   	
 };
 
-extern LX32DMX ESP32DMX;
-
+#if DO_NO_CREATE_DEFAULT_LXESP32DMX_CLASS_OBJECT != 1
+  extern LX32DMX ESP32DMX;
+#endif
 const UID THIS_DEVICE_ID(0x6C, 0x78, 0x00, 0x00, 0x00, 0x01);
 
 #endif // ifndef LX32DMX_H
